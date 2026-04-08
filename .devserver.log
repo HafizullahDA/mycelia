@@ -1,0 +1,17 @@
+
+> mycelia@0.1.0 dev
+> next dev
+
+  ▲ Next.js 14.2.32
+  - Local:        http://localhost:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 4s
+ ○ Compiling /signup ...
+ ✓ Compiled /signup in 9.9s (597 modules)
+ GET /signup 200 in 10332ms
+ ✓ Compiled in 425ms (303 modules)
+ ○ Compiling /login ...
+ ✓ Compiled /login in 1278ms (593 modules)
+ GET /login 200 in 170ms
