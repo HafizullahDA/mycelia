@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Inter } from 'next/font/google';
-import { KeyboardEvent, useMemo, useState } from 'react';
+import { KeyboardEvent, useState } from 'react';
 import { BrandWordmark } from '@/components/brand-wordmark';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 
@@ -54,8 +54,6 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState('');
   const [successEmail, setSuccessEmail] = useState('');
 
-  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-
   const handleSubmit = async () => {
     if (loading) {
       return;
@@ -69,6 +67,7 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setError('');
 
+    const supabase = getSupabaseBrowserClient();
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: `${window.location.origin}/reset-password`,
     });

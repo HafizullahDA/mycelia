@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Inter } from 'next/font/google';
-import { KeyboardEvent, useMemo, useState } from 'react';
+import { KeyboardEvent, useState } from 'react';
 import { BrandWordmark } from '@/components/brand-wordmark';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 
@@ -110,8 +110,6 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-
   const handleSubmit = async () => {
     if (loading) {
       return;
@@ -125,6 +123,7 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
 
+    const supabase = getSupabaseBrowserClient();
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
@@ -147,6 +146,7 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
 
+    const supabase = getSupabaseBrowserClient();
     const { error: googleError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {

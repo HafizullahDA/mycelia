@@ -1,8 +1,10 @@
-﻿'use client';
+'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
+import { useRouter } from 'next/navigation';
 import { BrandWordmark } from '@/components/brand-wordmark';
+import { McqGenerationPanel } from '@/components/mcq-generation-panel';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 
 type UploadMode = 'file' | 'text';
@@ -21,12 +23,33 @@ type SavedSourceItem = {
 };
 
 type ExtractionResult = {
+  sourceUploadId?: string;
   title: string;
   extractedText: string;
   keyTopics: string[];
   method: 'normalized_text' | 'gemini_flash';
   characterCount: number;
 };
+
+type SourceUploadRow = {
+  id: string;
+  upload_type: SourceKind;
+  title: string | null;
+  original_filename: string | null;
+  mime_type: string | null;
+  file_size_bytes: number | null;
+  storage_path: string | null;
+  raw_text: string | null;
+};
+
+type SaveMetadataResult =
+  | {
+      status: 'saved';
+      sourceId: string;
+    }
+  | {
+      status: 'pending_setup';
+    };
 
 const MAX_FILE_SIZE_BYTES = 12 * 1024 * 1024;
 const RAW_NOTES_BUCKET = 'raw-notes';
@@ -54,6 +77,36 @@ const formatBytes = (value: number): string => {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+const mapSourceUploadRow = (row: SourceUploadRow): SavedSourceItem => {
+  if (row.upload_type === 'text') {
+    const textLength = row.raw_text?.length ?? 0;
+
+    return {
+      id: row.id,
+      kind: 'text',
+      label: row.title?.trim() || 'Pasted notes',
+      status: 'saved',
+      detail: `${textLength} characters saved`,
+      rawText: row.raw_text ?? '',
+      title: row.title ?? 'Pasted notes',
+    };
+  }
+
+  return {
+    id: row.id,
+    kind: row.upload_type,
+    label: row.original_filename ?? row.title?.trim() ?? 'Uploaded source',
+    status: 'saved',
+    detail:
+      typeof row.file_size_bytes === 'number'
+        ? `${formatBytes(row.file_size_bytes)} - ready for extraction`
+        : 'Saved in storage and ready for extraction',
+    storagePath: row.storage_path ?? undefined,
+    mimeType: row.mime_type ?? undefined,
+    title: row.title ?? row.original_filename ?? 'Uploaded source',
+  };
+};
+
 const FileIcon = () => (
   <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
     <path
@@ -79,14 +132,16 @@ const CheckIcon = () => (
 );
 
 export function DashboardUploadWorkspace() {
-  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const router = useRouter();
 
   const [user, setUser] = useState<User | null>(null);
+  const [authChecking, setAuthChecking] = useState(true);
   const [mode, setMode] = useState<UploadMode>('file');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [textInput, setTextInput] = useState('');
   const [title, setTitle] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [loadingSavedItems, setLoadingSavedItems] = useState(false);
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -94,16 +149,89 @@ export function DashboardUploadWorkspace() {
   const [extractionResult, setExtractionResult] = useState<ExtractionResult | null>(null);
 
   useEffect(() => {
+    let isActive = true;
+
+    const loadSavedItems = async (currentUserId: string) => {
+      const supabase = getSupabaseBrowserClient();
+      setLoadingSavedItems(true);
+
+      const { data, error: loadError } = await supabase
+        .from('source_uploads')
+        .select(
+          'id, upload_type, title, original_filename, mime_type, file_size_bytes, storage_path, raw_text',
+        )
+        .eq('user_id', currentUserId)
+        .order('created_at', { ascending: false })
+        .limit(6);
+
+      if (!isActive) {
+        return;
+      }
+
+      if (loadError) {
+        const normalized = loadError.message.toLowerCase();
+
+        if (normalized.includes('source_uploads') || normalized.includes('relation')) {
+          setSavedItems([]);
+          setLoadingSavedItems(false);
+          return;
+        }
+
+        setError('Saved sources could not be loaded. Check Supabase setup.');
+        setLoadingSavedItems(false);
+        return;
+      }
+
+      setSavedItems((data ?? []).map((row) => mapSourceUploadRow(row as SourceUploadRow)));
+      setLoadingSavedItems(false);
+    };
+
     const loadUser = async () => {
+      const supabase = getSupabaseBrowserClient();
       const {
         data: { user: currentUser },
       } = await supabase.auth.getUser();
 
+      if (!isActive) {
+        return;
+      }
+
+      if (!currentUser) {
+        setUser(null);
+        setAuthChecking(false);
+        router.replace('/login');
+        return;
+      }
+
       setUser(currentUser);
+      setAuthChecking(false);
+      await loadSavedItems(currentUser.id);
     };
 
     void loadUser();
-  }, [supabase]);
+
+    const supabase = getSupabaseBrowserClient();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!isActive) {
+        return;
+      }
+
+      if (!session?.user) {
+        setUser(null);
+        router.replace('/login');
+        return;
+      }
+
+      setUser(session.user);
+    });
+
+    return () => {
+      isActive = false;
+      subscription.unsubscribe();
+    };
+  }, [router]);
 
   const handleFileSelect = (file: File | null) => {
     setError('');
@@ -140,29 +268,39 @@ export function DashboardUploadWorkspace() {
     storage_bucket: string | null;
     storage_path: string | null;
     raw_text: string | null;
-  }): Promise<'saved' | 'pending_setup'> => {
-    const { error: insertError } = await supabase.from('source_uploads').insert({
-      user_id: user?.id ?? null,
-      ...payload,
-      status: 'uploaded',
-    });
+  }): Promise<SaveMetadataResult> => {
+    const supabase = getSupabaseBrowserClient();
+    const { data, error: insertError } = await supabase
+      .from('source_uploads')
+      .insert({
+        user_id: user?.id ?? null,
+        ...payload,
+        status: 'uploaded',
+      })
+      .select('id')
+      .single();
 
-    if (!insertError) {
-      return 'saved';
+    if (!insertError && data?.id) {
+      return {
+        status: 'saved',
+        sourceId: data.id,
+      };
     }
 
     if (
-      insertError.message.toLowerCase().includes('source_uploads') ||
-      insertError.message.toLowerCase().includes('relation')
+      insertError?.message.toLowerCase().includes('source_uploads') ||
+      insertError?.message.toLowerCase().includes('relation')
     ) {
-      return 'pending_setup';
+      return {
+        status: 'pending_setup',
+      };
     }
 
     throw insertError;
   };
 
   const pushSavedItem = (item: SavedSourceItem) => {
-    setSavedItems((current) => [item, ...current].slice(0, 6));
+    setSavedItems((current) => [item, ...current.filter((existing) => existing.id !== item.id)].slice(0, 6));
   };
 
   const handleFileUpload = async () => {
@@ -196,6 +334,7 @@ export function DashboardUploadWorkspace() {
     const storagePath = `${user.id}/${Date.now()}-${safeName}`;
     const resolvedTitle = title.trim() || selectedFile.name.replace(/\.[^.]+$/, '');
 
+    const supabase = getSupabaseBrowserClient();
     const { error: uploadError } = await supabase.storage.from(RAW_NOTES_BUCKET).upload(storagePath, selectedFile, {
       cacheControl: '3600',
       upsert: false,
@@ -212,7 +351,7 @@ export function DashboardUploadWorkspace() {
     }
 
     try {
-      const metadataStatus = await saveMetadataRecord({
+      const metadataResult = await saveMetadataRecord({
         upload_type: kind,
         title: resolvedTitle,
         original_filename: selectedFile.name,
@@ -224,12 +363,12 @@ export function DashboardUploadWorkspace() {
       });
 
       pushSavedItem({
-        id: storagePath,
+        id: metadataResult.status === 'saved' ? metadataResult.sourceId : storagePath,
         kind,
         label: selectedFile.name,
-        status: metadataStatus,
+        status: metadataResult.status,
         detail:
-          metadataStatus === 'saved'
+          metadataResult.status === 'saved'
             ? `${formatBytes(selectedFile.size)} - ready for extraction`
             : 'Stored in bucket, but metadata table still needs setup',
         storagePath,
@@ -238,7 +377,7 @@ export function DashboardUploadWorkspace() {
       });
 
       setSuccessMessage(
-        metadataStatus === 'saved'
+        metadataResult.status === 'saved'
           ? 'Source saved. You can extract it now.'
           : 'File reached storage. Run the Supabase setup SQL to save metadata too.',
       );
@@ -275,7 +414,7 @@ export function DashboardUploadWorkspace() {
     const normalizedText = textInput.trim();
 
     try {
-      const metadataStatus = await saveMetadataRecord({
+      const metadataResult = await saveMetadataRecord({
         upload_type: 'text',
         title: derivedTitle,
         original_filename: null,
@@ -287,12 +426,12 @@ export function DashboardUploadWorkspace() {
       });
 
       pushSavedItem({
-        id: crypto.randomUUID(),
+        id: metadataResult.status === 'saved' ? metadataResult.sourceId : crypto.randomUUID(),
         kind: 'text',
         label: derivedTitle,
-        status: metadataStatus,
+        status: metadataResult.status,
         detail:
-          metadataStatus === 'saved'
+          metadataResult.status === 'saved'
             ? `${normalizedText.length} characters saved`
             : 'Text captured locally, but metadata table still needs setup',
         rawText: normalizedText,
@@ -300,7 +439,7 @@ export function DashboardUploadWorkspace() {
       });
 
       setSuccessMessage(
-        metadataStatus === 'saved'
+        metadataResult.status === 'saved'
           ? 'Pasted notes saved. You can extract them now.'
           : 'Text is ready, but the metadata table still needs setup SQL.',
       );
@@ -346,14 +485,17 @@ export function DashboardUploadWorkspace() {
         body: JSON.stringify(payload),
       });
 
-      const data = (await response.json()) as { error?: string; result?: ExtractionResult };
+      const data = (await response.json()) as { error?: string; result?: Omit<ExtractionResult, 'sourceUploadId'> };
 
       if (!response.ok || !data.result) {
         setError(data.error ?? 'Extraction failed.');
         return;
       }
 
-      setExtractionResult(data.result);
+      setExtractionResult({
+        ...data.result,
+        sourceUploadId: item.status === 'saved' ? item.id : undefined,
+      });
       setSuccessMessage(
         data.result.method === 'gemini_flash'
           ? 'Extraction complete through Gemini Flash.'
@@ -366,6 +508,27 @@ export function DashboardUploadWorkspace() {
     }
   };
 
+  if (authChecking) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#0A0F1A] px-6 text-[#F9FAFB]">
+        <div className="text-center">
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-white/10 border-t-[#C8A44A]" />
+          <p className="mt-5 text-sm text-[#9CA3AF]">Checking your session...</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!user) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#0A0F1A] px-6 text-[#F9FAFB]">
+        <div className="text-center">
+          <p className="text-sm text-[#9CA3AF]">Redirecting you to login...</p>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#0A0F1A] px-6 py-10 text-[#F9FAFB] sm:px-8 lg:px-10">
       <div className="mx-auto max-w-7xl">
@@ -373,14 +536,14 @@ export function DashboardUploadWorkspace() {
           <div className="max-w-2xl">
             <BrandWordmark size="sm" />
             <p className="mt-8 text-xs font-semibold uppercase tracking-[0.32em] text-[#C8A44A]">
-              Phase 1 - Section B
+              Phase 1 - Sections B, C, D, and E
             </p>
             <h1 className="mt-3 text-4xl font-bold tracking-[-0.04em] text-[#F9FAFB] sm:text-5xl">
-              Extract clean study text from what you upload.
+              Turn saved notes into extracted text, serious UPSC MCQs, and stored quiz results.
             </h1>
             <p className="mt-4 max-w-xl text-sm leading-7 text-[#9CA3AF] sm:text-[15px]">
-              Saved sources can now move into the extraction stage. Pasted text is normalized
-              immediately. PDF and image extraction is wired for Gemini Flash.
+              The workspace now covers the core loop after upload: extraction with Gemini Flash,
+              MCQ generation with Gemini 3.1 Pro, quiz attempt, and result persistence.
             </p>
           </div>
 
@@ -388,9 +551,7 @@ export function DashboardUploadWorkspace() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#C8A44A]">
               Session
             </p>
-            <p className="mt-2 font-medium text-[#F9FAFB]">
-              {user ? 'Authenticated and ready to save uploads' : 'Sign in to activate uploads'}
-            </p>
+            <p className="mt-2 font-medium text-[#F9FAFB]">Authenticated and ready to save uploads</p>
             <p className="mt-2 max-w-xs text-sm leading-6 text-[#9CA3AF]">
               File extraction needs `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, and
               `GEMINI_FLASH_MODEL` in the frontend environment.
@@ -546,14 +707,16 @@ export function DashboardUploadWorkspace() {
 
           <aside className="space-y-6">
             <section className="rounded-[20px] border border-white/10 bg-[#111827] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.35)] sm:p-6">
-              <p className="text-sm font-semibold text-[#F9FAFB]">Section B status</p>
+              <p className="text-sm font-semibold text-[#F9FAFB]">Pipeline status</p>
               <div className="mt-5 space-y-3">
                 {[
                   'Extraction route scaffolded',
                   'Pasted text normalization ready',
                   'Gemini Flash file extraction wired',
                   'Dashboard extraction trigger added',
-                  'Extraction preview panel added',
+                  'Quiz attempt session added',
+                  'Gemini Pro MCQ route added',
+                  'Quiz result persistence route added',
                 ].map((item) => (
                   <div key={item} className="flex items-center gap-3 rounded-xl border border-white/8 bg-[#0A0F1A] px-4 py-3 text-sm text-[#9CA3AF]">
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/12 text-emerald-300">
@@ -573,7 +736,11 @@ export function DashboardUploadWorkspace() {
               </p>
 
               <div className="mt-5 space-y-3">
-                {savedItems.length === 0 ? (
+                {loadingSavedItems ? (
+                  <div className="rounded-xl border border-dashed border-white/10 px-4 py-6 text-sm text-[#4B5563]">
+                    Loading your saved sources...
+                  </div>
+                ) : savedItems.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-white/10 px-4 py-6 text-sm text-[#4B5563]">
                     No source saved yet. Upload one PDF, image, or pasted note to begin.
                   </div>
@@ -649,10 +816,16 @@ export function DashboardUploadWorkspace() {
                 </div>
               ) : (
                 <div className="mt-5 rounded-xl border border-dashed border-white/10 px-4 py-6 text-sm text-[#4B5563]">
-                  Extracted notes will appear here once you run the new extraction route.
+                  Extracted notes will appear here once you run the extraction route.
                 </div>
               )}
             </section>
+
+            <McqGenerationPanel
+              extractionResult={extractionResult}
+              onError={setError}
+              onSuccess={setSuccessMessage}
+            />
           </aside>
         </div>
       </div>

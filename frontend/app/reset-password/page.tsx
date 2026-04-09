@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Inter } from 'next/font/google';
-import { KeyboardEvent, useEffect, useMemo, useState } from 'react';
+import { KeyboardEvent, useEffect, useState } from 'react';
 import { BrandWordmark } from '@/components/brand-wordmark';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 
@@ -152,11 +152,11 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState('');
   const [status, setStatus] = useState<RecoveryStatus>('checking');
 
-  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const passwordStrength = getPasswordStrength(password);
 
   useEffect(() => {
     const establishRecoverySession = async () => {
+      const supabase = getSupabaseBrowserClient();
       const hash = window.location.hash.startsWith('#')
         ? window.location.hash.slice(1)
         : window.location.hash;
@@ -196,7 +196,7 @@ export default function ResetPasswordPage() {
     };
 
     void establishRecoverySession();
-  }, [supabase]);
+  }, []);
 
   const handleSubmit = async () => {
     if (loading || status !== 'ready') {
@@ -221,6 +221,7 @@ export default function ResetPasswordPage() {
     setLoading(true);
     setError('');
 
+    const supabase = getSupabaseBrowserClient();
     const { error: updateError } = await supabase.auth.updateUser({
       password,
     });

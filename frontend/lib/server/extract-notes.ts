@@ -1,4 +1,5 @@
 ﻿import { getSupabaseAdminClient } from '@/lib/server/supabase-admin';
+import { buildVertexAiGenerateContentUrl } from '@/lib/server/vertex-ai';
 
 export type ExtractNotesInput =
   | {
@@ -30,7 +31,9 @@ const normalizeText = (value: string): string =>
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 
-const parseJsonCandidate = (value: string): { extractedText: string; keyTopics?: string[]; documentTitle?: string } | null => {
+const parseJsonCandidate = (
+  value: string,
+): { extractedText: string; keyTopics?: string[]; documentTitle?: string } | null => {
   try {
     return JSON.parse(value) as { extractedText: string; keyTopics?: string[]; documentTitle?: string };
   } catch {
@@ -50,12 +53,13 @@ const parseJsonCandidate = (value: string): { extractedText: string; keyTopics?:
 
 const arrayBufferToBase64 = (buffer: ArrayBuffer): string => Buffer.from(buffer).toString('base64');
 
-const extractTextWithGeminiFlash = async (fileBytes: ArrayBuffer, mimeType: string, title?: string) => {
-  const apiKey = process.env.GEMINI_API_KEY;
+const extractTextWithVertexAi = async (fileBytes: ArrayBuffer, mimeType: string, title?: string) => {
   const model = process.env.GEMINI_FLASH_MODEL;
 
-  if (!apiKey || !model) {
-    throw new Error('Missing Gemini Flash configuration. Add GEMINI_API_KEY and GEMINI_FLASH_MODEL to the frontend environment.');
+  if (!model) {
+    throw new Error(
+      'Missing Vertex AI model configuration. Add GEMINI_FLASH_MODEL to the frontend environment.',
+    );
   }
 
   const prompt = [
@@ -68,39 +72,36 @@ const extractTextWithGeminiFlash = async (fileBytes: ArrayBuffer, mimeType: stri
     title ? `Suggested title: ${title}` : 'Suggested title: Uploaded notes',
   ].join('\n');
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              { text: prompt },
-              {
-                inline_data: {
-                  mime_type: mimeType,
-                  data: arrayBufferToBase64(fileBytes),
-                },
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.1,
-          responseMimeType: 'application/json',
-        },
-      }),
+  const response = await fetch(buildVertexAiGenerateContentUrl(model), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
     },
-  );
+    body: JSON.stringify({
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: prompt },
+            {
+              inline_data: {
+                mime_type: mimeType,
+                data: arrayBufferToBase64(fileBytes),
+              },
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: 'application/json',
+      },
+    }),
+  });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Gemini Flash request failed: ${errorText}`);
+    throw new Error(`Vertex AI Flash request failed: ${errorText}`);
   }
 
   const data = (await response.json()) as {
@@ -117,7 +118,7 @@ const extractTextWithGeminiFlash = async (fileBytes: ArrayBuffer, mimeType: stri
   const parsed = parseJsonCandidate(candidateText);
 
   if (!parsed?.extractedText) {
-    throw new Error('Gemini Flash did not return valid extraction output.');
+    throw new Error('Vertex AI Flash did not return valid extraction output.');
   }
 
   return {
@@ -158,7 +159,7 @@ export const extractNotes = async (input: ExtractNotesInput): Promise<ExtractNot
   }
 
   const fileBytes = await data.arrayBuffer();
-  const extracted = await extractTextWithGeminiFlash(fileBytes, input.mimeType, input.title);
+  const extracted = await extractTextWithVertexAi(fileBytes, input.mimeType, input.title);
 
   return {
     ...extracted,

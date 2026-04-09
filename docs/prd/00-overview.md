@@ -37,6 +37,15 @@ Current model decisions:
 - `Gemini 3.1 Pro`: nuanced MCQ generation, wiki compilation, concept linking, analysis, health checks
 - `Gemini Flash 3.x`: OCR, extraction, fast preprocessing of PDFs and images
 
+## Operating constraint
+myCELIA should be designed with Google Cloud free credits as the primary AI budget constraint.
+
+Implications:
+- prefer Gemini and Google Cloud-native services first
+- avoid unnecessary third-party paid AI dependencies
+- minimize duplicate model calls
+- validate and normalize cheaply before sending material to models
+
 ## Product promise
 After 30 days, myCELIA should understand a student's preparation gaps better than the student does.
 
