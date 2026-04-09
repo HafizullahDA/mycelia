@@ -1,0 +1,8 @@
+{
+  "name": "mycelia-backend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node -e \"console.log('Backend scaffold ready. Build Section B next: extraction route and Gemini orchestration.')\""
+  }
+}
