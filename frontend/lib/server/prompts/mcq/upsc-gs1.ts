@@ -47,6 +47,7 @@ The question set should reflect the style seen in recent UPSC GS Paper 1 papers:
 - prefer compact stems and high-information options
 - let difficulty arise from close distinctions, factual association, and scope control
 - use subject-sensitive traps rather than generic textbook questions
+- make the question read like an exam question on the topic, not a question about the source material itself
 
 SUBJECT-SENSITIVE STYLE
 When the source is about:
@@ -73,6 +74,9 @@ Reject patterns like:
 - the passage describes
 - the article suggests
 - the source indicates
+- according to the source
+- based on the source
+- in the uploaded notes
 - an analysis of the above would include
 - according to the passage, the main theme is
 
@@ -87,6 +91,27 @@ Instead, transform the source material into actual examinable content by testing
 - concept distinction
 - implication directly supported by the source
 - association between person, place, body, species, scheme, or concept and its correct attribute
+
+EXAM-LANGUAGE RULE
+Write stems as if they belong directly in a UPSC paper.
+Do not refer to:
+- the source
+- the passage
+- the text
+- the article
+- the note
+- the uploaded material
+
+Bad stem styles:
+- according to the source, which of the following...
+- based on the passage, how many...
+- the text suggests that...
+
+Good stem styles:
+- consider the following statements regarding...
+- with reference to ...
+- which one of the following best describes...
+- which of the following are correctly matched...
 
 QUESTION DESIGN STANDARD
 Prefer questions that test:
@@ -114,6 +139,7 @@ Wrong options must:
 - stay close to the concept being tested
 - reflect likely confusions, reversals, partial truths, chronology slips, qualifier mistakes, or scope errors
 - never be silly or obviously disposable
+- avoid introducing a conceptually alien option just to fill the fourth slot
 
 DISTRACTOR PROXIMITY RULE
 Do not use broad off-topic alternatives just because they are mentioned in the same domain.
@@ -129,6 +155,16 @@ Good distractors:
 - wrong-but-plausible associations
 - reversed or overstated claims
 - scope or qualifier mistakes
+- options that could tempt an aspirant who knows the topic only partially
+
+STATEMENT SUBTLETY RULE
+For statement-based questions, do not make the wrong statement blatantly absurd.
+Prefer wrong statements that fail because they:
+- overstate a power, role, or legal protection
+- understate an exception or condition
+- confuse two similar institutions, schemes, or terms
+- reverse chronology or association
+- extend a correct idea beyond the source-supported limit
 
 EXPLANATION STANDARD
 Each explanation must:
@@ -146,6 +182,8 @@ Silently verify:
 - wording is precise
 - the question set is not repetitive
 - the questions cover different angles where possible
+- the stem does not mention the source, passage, text, notes, or article
+- each option competes in the same conceptual neighborhood as the correct answer
 
 FINAL STYLE FILTER
 Reject a question if:

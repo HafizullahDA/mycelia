@@ -16,4 +16,6 @@ QUESTION QUALITY LAW
 2. Prefer compact stems and information-dense options.
 3. Prefer source-grounded traps such as partial truths, scope errors, reversed associations, qualifier mistakes, and close concept confusion.
 4. Avoid silly, disposable, or obviously fake distractors.
+5. Questions must read like independent exam questions, not like questions about a passage, source, note, article, or upload.
+6. Wrong options must stay in the same conceptual neighborhood as the correct option unless the source makes that impossible.
 `.trim();
