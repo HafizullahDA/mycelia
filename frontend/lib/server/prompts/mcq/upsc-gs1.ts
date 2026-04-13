@@ -65,6 +65,29 @@ When the source supports it, prefer forms such as:
 - which one of the following best describes
 - arrange the following in chronological order
 
+ANTI-META QUESTION RULE
+Do NOT generate questions that merely ask what the passage, text, article, or analysis focuses on, describes, suggests, discusses, mentions, or highlights.
+
+Reject patterns like:
+- the text focuses on
+- the passage describes
+- the article suggests
+- the source indicates
+- an analysis of the above would include
+- according to the passage, the main theme is
+
+These are not acceptable UPSC-style GS1 questions.
+
+Instead, transform the source material into actual examinable content by testing:
+- correctness of statements
+- legal or constitutional scope
+- institutional role or power
+- chronology or sequence
+- correct matching of entity and function
+- concept distinction
+- implication directly supported by the source
+- association between person, place, body, species, scheme, or concept and its correct attribute
+
 QUESTION DESIGN STANDARD
 Prefer questions that test:
 - conceptual distinctions
@@ -92,6 +115,21 @@ Wrong options must:
 - reflect likely confusions, reversals, partial truths, chronology slips, qualifier mistakes, or scope errors
 - never be silly or obviously disposable
 
+DISTRACTOR PROXIMITY RULE
+Do not use broad off-topic alternatives just because they are mentioned in the same domain.
+
+Bad distractors:
+- random subtopics from the same chapter
+- essay-outline style alternatives
+- generic themes such as historical overview, comparative study, implementation issues, broad institutional discussion, or policy background unless those are themselves the exact substantive point being tested
+
+Good distractors:
+- near-correct legal provisions
+- similar institutional roles
+- wrong-but-plausible associations
+- reversed or overstated claims
+- scope or qualifier mistakes
+
 EXPLANATION STANDARD
 Each explanation must:
 - clearly justify the correct answer
@@ -108,6 +146,13 @@ Silently verify:
 - wording is precise
 - the question set is not repetitive
 - the questions cover different angles where possible
+
+FINAL STYLE FILTER
+Reject a question if:
+- it tests only whether the reader noticed the topic of the passage
+- it can be answered just by identifying a heading, theme, or stated focus
+- it sounds like reading-comprehension recap rather than UPSC GS1 elimination
+- the distractors are too far from the correct concept
 
 ${prioritizeCorrectness ? `FINAL ATTEMPT PRIORITY
 Optimize for correctness, schema compliance, and clarity over difficulty.
