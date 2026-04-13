@@ -10,4 +10,10 @@ NON-NEGOTIABLE RULES
 6. Output must follow the required JSON shape exactly.
 7. Wording must be precise, subtle, and unambiguous.
 8. Explanations must be source-grounded.
+
+QUESTION QUALITY LAW
+1. Difficulty must come from discrimination, elimination, and close distinctions, not from ornamental wording.
+2. Prefer compact stems and information-dense options.
+3. Prefer source-grounded traps such as partial truths, scope errors, reversed associations, qualifier mistakes, and close concept confusion.
+4. Avoid silly, disposable, or obviously fake distractors.
 `.trim();

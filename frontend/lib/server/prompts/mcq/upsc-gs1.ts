@@ -18,10 +18,11 @@ Generate high-quality MCQs from the provided source text.
 
 GOAL
 Create UPSC-style questions that are:
-- conceptually sharp
+- compact
+- discriminative
 - factually reliable
 - subtle but unambiguous
-- difficult because of nuance, not because of trick wording
+- difficult because of elimination pressure and close reasoning, not because of obscure wording
 
 DUAL CONSTRAINT DIRECTIVE
 1. CONTENT SOURCE
@@ -40,6 +41,30 @@ Generate only source-grounded questions that fit within these broad UPSC GS1 dom
 - Environment, biodiversity, and climate change
 - Science and technology
 
+UPSC STYLE LAW
+The question set should reflect the style seen in recent UPSC GS Paper 1 papers:
+- prefer elimination-friendly structures over direct one-step recall
+- prefer compact stems and high-information options
+- let difficulty arise from close distinctions, factual association, and scope control
+- use subject-sensitive traps rather than generic textbook questions
+
+SUBJECT-SENSITIVE STYLE
+When the source is about:
+- Polity or Governance: test constitutional scope, institutional role, legal conditions, procedural distinctions
+- History or Art & Culture: test chronology, movement-person-event linkage, title-term association, factual distinction
+- Geography: test place-river-region-resource association and physical-economic linkage
+- Environment: test species-habitat-status-convention associations
+- Economy: test concept-function-policy implication and definitional precision
+- Science and Technology: test application-oriented distinction and correct conceptual pairing
+
+QUESTION DESIGN PREFERENCE
+When the source supports it, prefer forms such as:
+- consider the following statements
+- how many of the above statements are correct
+- which of the following pairs are correctly matched
+- which one of the following best describes
+- arrange the following in chronological order
+
 QUESTION DESIGN STANDARD
 Prefer questions that test:
 - conceptual distinctions
@@ -50,26 +75,27 @@ Prefer questions that test:
 - classification and categorization
 - careful reading of qualifiers and scope
 - implications supported directly by the text
+- association between related entities, places, institutions, species, or schemes
 
 Avoid:
 - trivial recall unless the source itself is basic
 - unsupported outside-current-affairs linkage
 - vague wording
 - two-correct-answer ambiguity
-- assertion-reasoning and match-the-following for now
+- assertion-reasoning and match-the-following as formal output formats for now
 - negative framing unless it is exceptionally clear
 
 DISTRACTOR STANDARD
 Wrong options must:
 - be plausible to a serious UPSC aspirant
 - stay close to the concept being tested
-- reflect likely confusions, reversals, exaggerations, chronology slips, or scope errors
+- reflect likely confusions, reversals, partial truths, chronology slips, qualifier mistakes, or scope errors
 - never be silly or obviously disposable
 
 EXPLANATION STANDARD
 Each explanation must:
 - clearly justify the correct answer
-- briefly note why the other options are wrong when useful
+- briefly note the elimination logic or why the other options fail when useful
 - stay concise
 - remain fully grounded in the source
 
@@ -78,6 +104,7 @@ Silently verify:
 - each question is answerable from the source alone
 - exactly one option is correct
 - no distractor is accidentally correct
+- distractors are plausible because they are close, not because they are random
 - wording is precise
 - the question set is not repetitive
 - the questions cover different angles where possible
