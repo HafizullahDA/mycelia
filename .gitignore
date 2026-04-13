@@ -3,4 +3,7 @@ node_modules
 .env.local
 npm-debug.log*
 .devserver.log
+.devserver.out.log
 .devserver.err.log
+.codex-dev-out.log
+.codex-dev-err.log

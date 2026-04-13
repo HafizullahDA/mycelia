@@ -1,5 +1,7 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { extractNotes } from '@/lib/server/extract-notes';
+
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   try {

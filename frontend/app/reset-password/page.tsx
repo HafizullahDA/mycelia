@@ -3,8 +3,12 @@
 import Link from 'next/link';
 import { Inter } from 'next/font/google';
 import { KeyboardEvent, useEffect, useState } from 'react';
-import { BrandWordmark } from '@/components/brand-wordmark';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { BrandWordmark } from '@/components/brand/wordmark';
+import {
+  getSupabaseBrowserClient,
+  getSupabaseBrowserEnvErrorMessage,
+  hasSupabaseBrowserEnv,
+} from '@/lib/supabase/client';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -151,12 +155,18 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [status, setStatus] = useState<RecoveryStatus>('checking');
+  const hasSupabaseEnv = hasSupabaseBrowserEnv();
 
   const passwordStrength = getPasswordStrength(password);
 
   useEffect(() => {
+    if (!hasSupabaseEnv) {
+      setStatus('invalid');
+      setError(getSupabaseBrowserEnvErrorMessage());
+      return;
+    }
+
     const establishRecoverySession = async () => {
-      const supabase = getSupabaseBrowserClient();
       const hash = window.location.hash.startsWith('#')
         ? window.location.hash.slice(1)
         : window.location.hash;
@@ -165,38 +175,47 @@ export default function ResetPasswordPage() {
       const refreshToken = params.get('refresh_token');
       const recoveryType = params.get('type');
 
-      if (accessToken && refreshToken && recoveryType === 'recovery') {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
+      try {
+        const supabase = getSupabaseBrowserClient();
 
-        if (sessionError) {
-          setStatus('invalid');
-          setError('This reset link has expired. Request a new one.');
+        if (accessToken && refreshToken && recoveryType === 'recovery') {
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+
+          if (sessionError) {
+            setStatus('invalid');
+            setError('This reset link has expired. Request a new one.');
+            return;
+          }
+
+          window.history.replaceState(null, '', '/reset-password');
+          setStatus('ready');
           return;
         }
 
-        window.history.replaceState(null, '', '/reset-password');
-        setStatus('ready');
-        return;
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session) {
+          setStatus('ready');
+          return;
+        }
+
+        setStatus('invalid');
+        setError('This reset link has expired. Request a new one.');
+      } catch (clientError) {
+        setStatus('invalid');
+        setError(
+          clientError instanceof Error ? clientError.message : getSupabaseBrowserEnvErrorMessage(),
+        );
       }
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (session) {
-        setStatus('ready');
-        return;
-      }
-
-      setStatus('invalid');
-      setError('This reset link has expired. Request a new one.');
     };
 
     void establishRecoverySession();
-  }, []);
+  }, [hasSupabaseEnv]);
 
   const handleSubmit = async () => {
     if (loading || status !== 'ready') {
@@ -221,10 +240,21 @@ export default function ResetPasswordPage() {
     setLoading(true);
     setError('');
 
-    const supabase = getSupabaseBrowserClient();
-    const { error: updateError } = await supabase.auth.updateUser({
-      password,
-    });
+    let updateError: { message: string } | null = null;
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const response = await supabase.auth.updateUser({
+        password,
+      });
+      updateError = response.error;
+    } catch (clientError) {
+      setError(
+        clientError instanceof Error ? clientError.message : getSupabaseBrowserEnvErrorMessage(),
+      );
+      setLoading(false);
+      return;
+    }
 
     if (updateError) {
       setError(mapResetUpdateError(updateError.message));
@@ -252,9 +282,9 @@ export default function ResetPasswordPage() {
 
   return (
     <main
-      className={`${inter.className} min-h-screen bg-[#0A0F1A] text-[#F9FAFB] md:grid md:grid-cols-2`}
+      className={`${inter.className} min-h-screen bg-[#0A0F1A] text-[#F9FAFB] lg:grid lg:grid-cols-2`}
     >
-      <section className="relative hidden overflow-hidden border-r border-white/5 bg-gradient-to-br from-[#0A0F1A] via-[#0E1522] to-[#111827] md:flex">
+      <section className="relative hidden overflow-hidden border-r border-white/5 bg-gradient-to-br from-[#0A0F1A] via-[#0E1522] to-[#111827] lg:flex">
         <div
           aria-hidden="true"
           className="absolute inset-y-0 left-[-20%] w-[75%] blur-3xl"
@@ -297,7 +327,7 @@ export default function ResetPasswordPage() {
         </div>
       </section>
 
-      <section className="flex min-h-screen bg-[#0A0F1A] px-6 py-8 sm:px-8 md:px-12">
+      <section className="flex min-h-screen bg-[#0A0F1A] px-5 py-6 sm:px-8 sm:py-8 lg:px-12">
         <div className="mx-auto flex w-full max-w-[380px] flex-col justify-center">
           {status === 'checking' ? (
             <div className="text-center">
@@ -351,7 +381,7 @@ export default function ResetPasswordPage() {
 
           {status === 'ready' ? (
             <>
-              <div className="mb-10 hidden justify-end text-right text-sm text-[#9CA3AF] md:flex">
+              <div className="mb-8 hidden justify-end text-right text-sm text-[#9CA3AF] lg:flex">
                 <span>
                   Need a new link?{' '}
                   <Link
@@ -363,8 +393,12 @@ export default function ResetPasswordPage() {
                 </span>
               </div>
 
-              <div>
-                <h2 className="text-[28px] font-bold tracking-[-0.03em] text-[#F9FAFB]">
+              <div className="lg:hidden">
+                <BrandWordmark size="sm" />
+              </div>
+
+              <div className="mt-6 lg:mt-0">
+                <h2 className="text-[28px] font-bold tracking-[-0.03em] text-[#F9FAFB] sm:text-[30px]">
                   Create a new password
                 </h2>
                 <p className="mt-1.5 text-sm leading-6 text-[#9CA3AF]">
@@ -467,7 +501,7 @@ export default function ResetPasswordPage() {
                 </button>
               </div>
 
-              <div className="mt-8 text-center text-[13px] text-[#9CA3AF] md:hidden">
+              <div className="mt-8 text-center text-[13px] text-[#9CA3AF] lg:hidden">
                 Need a new link?{' '}
                 <Link
                   className="font-medium text-[#C8A44A] transition hover:text-[#D8B55B]"

@@ -1,0 +1,128 @@
+import { UPSC_SHARED_RULES } from '@/lib/server/prompts/shared/upsc-rules';
+import type { McqPromptInput } from '@/lib/server/prompts/types';
+
+export const buildUpscGs1McqPrompt = ({
+  title,
+  questionCount,
+  keyTopics,
+  sourceText,
+  validationFeedback,
+  prioritizeCorrectness = false,
+}: McqPromptInput): string => `
+${UPSC_SHARED_RULES}
+
+You are the Chief Examiner for UPSC Civil Services Preliminary Examination, General Studies Paper 1.
+
+TASK
+Generate high-quality MCQs from the provided source text.
+
+GOAL
+Create UPSC-style questions that are:
+- conceptually sharp
+- factually reliable
+- subtle but unambiguous
+- difficult because of nuance, not because of trick wording
+
+DUAL CONSTRAINT DIRECTIVE
+1. CONTENT SOURCE
+Every question, option, answer, and explanation must be derived only from the provided source text.
+
+2. EXAM MORPHING
+Shape the questions in the style of UPSC GS Paper 1, while staying strictly inside the factual limits of the source.
+
+GS PAPER 1 BOUNDARIES
+Generate only source-grounded questions that fit within these broad UPSC GS1 domains:
+- Current events of national and international importance
+- History of India and Indian National Movement
+- Indian and world geography
+- Indian polity and governance
+- Economic and social development
+- Environment, biodiversity, and climate change
+- Science and technology
+
+QUESTION DESIGN STANDARD
+Prefer questions that test:
+- conceptual distinctions
+- chronology and sequence
+- constitutional or governance logic
+- cause and effect
+- comparison between similar concepts
+- classification and categorization
+- careful reading of qualifiers and scope
+- implications supported directly by the text
+
+Avoid:
+- trivial recall unless the source itself is basic
+- unsupported outside-current-affairs linkage
+- vague wording
+- two-correct-answer ambiguity
+- assertion-reasoning and match-the-following for now
+- negative framing unless it is exceptionally clear
+
+DISTRACTOR STANDARD
+Wrong options must:
+- be plausible to a serious UPSC aspirant
+- stay close to the concept being tested
+- reflect likely confusions, reversals, exaggerations, chronology slips, or scope errors
+- never be silly or obviously disposable
+
+EXPLANATION STANDARD
+Each explanation must:
+- clearly justify the correct answer
+- briefly note why the other options are wrong when useful
+- stay concise
+- remain fully grounded in the source
+
+SELF-CHECK BEFORE FINALIZING
+Silently verify:
+- each question is answerable from the source alone
+- exactly one option is correct
+- no distractor is accidentally correct
+- wording is precise
+- the question set is not repetitive
+- the questions cover different angles where possible
+
+${prioritizeCorrectness ? `FINAL ATTEMPT PRIORITY
+Optimize for correctness, schema compliance, and clarity over difficulty.
+If the source is limited, make the questions simpler rather than risk ambiguity.
+Return only standard four-option MCQs.` : ''}
+
+OUTPUT
+Return valid JSON only in this exact shape:
+
+{
+  "questions": [
+    {
+      "question": "string",
+      "options": [
+        "A. ...",
+        "B. ...",
+        "C. ...",
+        "D. ..."
+      ],
+      "correctAnswer": "A",
+      "explanation": "string",
+      "concepts": ["concept1", "concept2"],
+      "sourceSupport": "Short paraphrase of the exact source idea that supports the answer."
+    }
+  ],
+  "qualityCheck": {
+    "sourceAdequate": true,
+    "notes": "Brief note on whether the source was sufficient for nuanced UPSC GS1 MCQs."
+  }
+}
+
+Generate exactly ${questionCount} MCQs.
+
+SOURCE TITLE:
+${title ?? 'Uploaded notes'}
+
+${keyTopics?.length ? `PRIORITY TOPICS:\n${keyTopics.join(', ')}\n` : ''}
+${validationFeedback ? `RETRY GUIDANCE
+Your previous response failed validation.
+Fix these issues:
+${validationFeedback}
+
+` : ''}SOURCE TEXT:
+${sourceText}
+`.trim();

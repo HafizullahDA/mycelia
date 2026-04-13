@@ -38,7 +38,7 @@ Each entry should contain:
 
 ### 3. Compilation step after upload
 After raw notes are extracted:
-- Gemini 3.1 Pro should identify concepts
+- gemini-2.5-pro should identify concepts
 - organize them clearly
 - create or update wiki content
 

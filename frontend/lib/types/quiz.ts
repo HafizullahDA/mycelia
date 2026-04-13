@@ -11,6 +11,7 @@ export type GeneratedMcq = {
   correctAnswer: McqOptionId;
   explanation: string;
   conceptTag?: string;
+  sourceSupport?: string;
 };
 
 export type McqGenerationResult = {
@@ -18,6 +19,10 @@ export type McqGenerationResult = {
   questionCount: number;
   mcqs: GeneratedMcq[];
   quizToken: string;
+  qualityCheck?: {
+    sourceAdequate: boolean;
+    notes: string;
+  };
 };
 
 export type QuizResultItem = {
@@ -29,6 +34,7 @@ export type QuizResultItem = {
   isCorrect: boolean;
   explanation: string;
   conceptTag?: string;
+  sourceSupport?: string;
 };
 
 export type SaveQuizResultsInput = {

@@ -3,6 +3,25 @@ import type { SaveQuizResultsInput, SaveQuizResultsResult } from '@/lib/types/qu
 
 const roundScorePercent = (value: number): number => Math.round(value * 100) / 100;
 
+const normalizePersistenceError = (
+  message: string | undefined,
+  fallback: string,
+): string => {
+  const normalized = (message ?? '').toLowerCase();
+
+  if (
+    normalized.includes('schema cache') ||
+    normalized.includes('could not find the table') ||
+    normalized.includes('relation') ||
+    normalized.includes('quiz_sessions') ||
+    normalized.includes('question_results')
+  ) {
+    return 'Quiz persistence is not set up in Supabase yet. Run supabase/sql/002_phase1_quiz_results.sql and try again.';
+  }
+
+  return fallback;
+};
+
 export const saveQuizResults = async (
   userId: string,
   input: SaveQuizResultsInput,
@@ -44,7 +63,9 @@ export const saveQuizResults = async (
     .single();
 
   if (sessionError || !session) {
-    throw new Error('Quiz session could not be saved.');
+    throw new Error(
+      normalizePersistenceError(sessionError?.message, 'Quiz session could not be saved.'),
+    );
   }
 
   const questionRows = input.results.map((result) => ({
@@ -64,7 +85,9 @@ export const saveQuizResults = async (
 
   if (resultsError) {
     await supabase.from('quiz_sessions').delete().eq('id', session.id);
-    throw new Error('Question results could not be saved.');
+    throw new Error(
+      normalizePersistenceError(resultsError.message, 'Question results could not be saved.'),
+    );
   }
 
   return {

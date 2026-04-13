@@ -3,8 +3,11 @@
 import Link from 'next/link';
 import { Inter } from 'next/font/google';
 import { KeyboardEvent, useState } from 'react';
-import { BrandWordmark } from '@/components/brand-wordmark';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { BrandWordmark } from '@/components/brand/wordmark';
+import {
+  getSupabaseBrowserClient,
+  getSupabaseBrowserEnvErrorMessage,
+} from '@/lib/supabase/client';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -210,17 +213,28 @@ export default function SignupPage() {
     setLoading(true);
     setError('');
 
-    const supabase = getSupabaseBrowserClient();
-    const { error: signUpError } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        data: {
-          full_name: fullName.trim(),
+    let signUpError: { message: string } | null = null;
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const response = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: {
+            full_name: fullName.trim(),
+          },
+          emailRedirectTo: `${window.location.origin}/login`,
         },
-        emailRedirectTo: `${window.location.origin}/login`,
-      },
-    });
+      });
+      signUpError = response.error;
+    } catch (clientError) {
+      setError(
+        clientError instanceof Error ? clientError.message : getSupabaseBrowserEnvErrorMessage(),
+      );
+      setLoading(false);
+      return;
+    }
 
     if (signUpError) {
       setError(mapAuthError(signUpError.message));
@@ -240,13 +254,24 @@ export default function SignupPage() {
     setLoading(true);
     setError('');
 
-    const supabase = getSupabaseBrowserClient();
-    const { error: googleError } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/dashboard`,
-      },
-    });
+    let googleError: { message: string } | null = null;
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const response = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+      googleError = response.error;
+    } catch (clientError) {
+      setError(
+        clientError instanceof Error ? clientError.message : getSupabaseBrowserEnvErrorMessage(),
+      );
+      setLoading(false);
+      return;
+    }
 
     if (googleError) {
       setError('Something went wrong. Try again.');
@@ -270,9 +295,9 @@ export default function SignupPage() {
 
   return (
     <main
-      className={`${inter.className} min-h-screen bg-[#0A0F1A] text-[#F9FAFB] md:grid md:grid-cols-2`}
+      className={`${inter.className} min-h-screen bg-[#0A0F1A] text-[#F9FAFB] lg:grid lg:grid-cols-2`}
     >
-      <section className="relative hidden overflow-hidden border-r border-white/5 bg-gradient-to-br from-[#0A0F1A] via-[#0E1522] to-[#111827] md:flex">
+      <section className="relative hidden overflow-hidden border-r border-white/5 bg-gradient-to-br from-[#0A0F1A] via-[#0E1522] to-[#111827] lg:flex">
         <div
           aria-hidden="true"
           className="absolute inset-y-0 left-[-20%] w-[75%] blur-3xl"
@@ -315,7 +340,7 @@ export default function SignupPage() {
         </div>
       </section>
 
-      <section className="flex min-h-screen bg-[#0A0F1A] px-6 py-8 sm:px-8 md:px-12">
+      <section className="flex min-h-screen bg-[#0A0F1A] px-5 py-6 sm:px-8 sm:py-8 lg:px-12">
         <div className="mx-auto flex w-full max-w-[380px] flex-col justify-center">
           {successEmail ? (
             <div className="flex flex-col items-center text-center">
@@ -341,7 +366,7 @@ export default function SignupPage() {
             </div>
           ) : (
             <>
-              <div className="mb-10 hidden justify-end text-right text-sm text-[#9CA3AF] md:flex">
+              <div className="mb-8 hidden justify-end text-right text-sm text-[#9CA3AF] lg:flex">
                 <span>
                   Already have an account?{' '}
                   <Link
@@ -353,8 +378,12 @@ export default function SignupPage() {
                 </span>
               </div>
 
-              <div>
-                <h2 className="text-[28px] font-bold tracking-[-0.03em] text-[#F9FAFB]">
+              <div className="lg:hidden">
+                <BrandWordmark size="sm" />
+              </div>
+
+              <div className="mt-6 lg:mt-0">
+                <h2 className="text-[28px] font-bold tracking-[-0.03em] text-[#F9FAFB] sm:text-[30px]">
                   Create your account
                 </h2>
                 <p className="mt-1.5 text-sm leading-6 text-[#9CA3AF]">
@@ -517,7 +546,7 @@ export default function SignupPage() {
               <p className="mt-6 text-center text-[11px] leading-5 text-[#4B5563]">
                 By creating an account you agree to our{' '}
                 <Link className="text-[#C8A44A] transition hover:text-[#D8B55B]" href="/terms">
-                  Terms
+                  Terms & Conditions
                 </Link>{' '}
                 and{' '}
                 <Link className="text-[#C8A44A] transition hover:text-[#D8B55B]" href="/privacy">
@@ -525,7 +554,7 @@ export default function SignupPage() {
                 </Link>
               </p>
 
-              <div className="mt-8 text-center text-[13px] text-[#9CA3AF] md:hidden">
+              <div className="mt-8 text-center text-[13px] text-[#9CA3AF] lg:hidden">
                 Already have an account?{' '}
                 <Link
                   className="font-medium text-[#C8A44A] transition hover:text-[#D8B55B]"

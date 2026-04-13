@@ -1,4 +1,4 @@
-import { BrandWordmark } from '@/components/brand-wordmark';
+import { BrandWordmark } from '@/components/brand/wordmark';
 
 export default function PrivacyPage() {
   return (
