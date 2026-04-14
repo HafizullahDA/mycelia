@@ -14,9 +14,7 @@ const getQuizSigningSecret = (): string => {
   const secret = process.env.QUIZ_SIGNING_SECRET ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!secret) {
-    throw new Error(
-      'Missing quiz signing secret. Add QUIZ_SIGNING_SECRET or SUPABASE_SERVICE_ROLE_KEY to the frontend environment.',
-    );
+    throw new Error('The quiz session could not be prepared right now. Please try again shortly.');
   }
 
   return secret;
