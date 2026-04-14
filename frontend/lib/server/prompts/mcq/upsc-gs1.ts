@@ -66,6 +66,20 @@ When the source supports it, prefer forms such as:
 - which one of the following best describes
 - arrange the following in chronological order
 
+QUESTION STRUCTURE FORMAT
+For statement-based, pair-based, and sequence-based questions:
+- structure the question text with explicit line breaks
+- keep the introductory stem on its own line
+- place each numbered statement or pair on a separate new line
+- place the final instruction on its own line
+
+Example structure:
+Consider the following statements regarding ...
+1. Statement one
+2. Statement two
+3. Statement three
+Which of the statements given above is/are correct?
+
 STEM-OPTION CONSISTENCY LAW
 Whenever you choose a UPSC-style stem pattern, the instruction and the option format must match exactly.
 

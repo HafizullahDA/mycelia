@@ -116,6 +116,69 @@ const FeedbackCrossIcon = () => (
   </svg>
 );
 
+const QUESTION_INSTRUCTION_PATTERN =
+  /\s(?=(Which of the following|Which one of the following|Which of the statements given above|Which of the above statements|How many of the above|How many of the following|Select the correct answer using the code given below|Arrange the following))/gi;
+
+const NUMBERED_ITEM_PATTERN = /^(?:\d+|[IVXLCDM]+)\.\s/i;
+
+const formatQuestionLines = (question: string): string[] => {
+  const collapsed = question.replace(/\s+/g, ' ').trim();
+
+  const structured = collapsed
+    .replace(/:\s(?=(?:\d+|[IVXLCDM]+)\.\s)/g, ':\n')
+    .replace(/([^\n])\s(?=(?:\d+|[IVXLCDM]+)\.\s)/g, '$1\n')
+    .replace(QUESTION_INSTRUCTION_PATTERN, '\n');
+
+  return structured
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+};
+
+const QuestionStem = ({
+  prefix,
+  question,
+}: {
+  prefix: string;
+  question: string;
+}) => {
+  const lines = formatQuestionLines(question);
+
+  if (lines.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-semibold leading-6 text-[#F9FAFB] sm:text-[15px]">
+        {prefix} {lines[0]}
+      </p>
+
+      {lines.slice(1).map((line, index) => {
+        const isNumberedItem = NUMBERED_ITEM_PATTERN.test(line);
+        const isInstructionLine =
+          !isNumberedItem &&
+          /^(which|how many|select the correct answer|arrange the following)/i.test(line);
+
+        return (
+          <p
+            key={`${prefix}-${index}-${line}`}
+            className={`text-sm leading-6 sm:text-[15px] ${
+              isNumberedItem
+                ? 'pl-4 text-[#F3F4F6] sm:pl-5'
+                : isInstructionLine
+                  ? 'pt-1 font-medium text-[#E5E7EB]'
+                  : 'text-[#F9FAFB]'
+            }`}
+          >
+            {line}
+          </p>
+        );
+      })}
+    </div>
+  );
+};
+
 const buildResults = (
   generationResult: McqGenerationResult,
   answers: Record<number, McqOptionId>,
@@ -355,9 +418,7 @@ export function QuizSessionPanel({
 
           <div className="rounded-xl border border-white/8 bg-[#0A0F1A] px-4 py-4 sm:px-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <p className="text-sm font-semibold leading-6 text-[#F9FAFB] sm:text-[15px]">
-                Q{currentIndex + 1}. {currentQuestion.question}
-              </p>
+              <QuestionStem prefix={`Q${currentIndex + 1}.`} question={currentQuestion.question} />
               {currentQuestion.conceptTag ? (
                 <span className="w-fit rounded-full border border-[#C8A44A]/20 bg-[#C8A44A]/10 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-[#E7D29B]">
                   {currentQuestion.conceptTag}
@@ -500,9 +561,7 @@ export function QuizSessionPanel({
             {results.map((result, index) => (
               <div key={`${result.question}-${index}`} className="rounded-xl border border-white/8 bg-[#0A0F1A] px-4 py-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <p className="text-sm font-semibold leading-6 text-[#F9FAFB] sm:text-[15px]">
-                    Q{index + 1}. {result.question}
-                  </p>
+                  <QuestionStem prefix={`Q${index + 1}.`} question={result.question} />
                   {result.conceptTag ? (
                     <span className="w-fit rounded-full border border-[#C8A44A]/20 bg-[#C8A44A]/10 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-[#E7D29B]">
                       {result.conceptTag}
