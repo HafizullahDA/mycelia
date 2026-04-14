@@ -2,8 +2,10 @@
 
 import Link from 'next/link';
 import { Inter } from 'next/font/google';
-import { KeyboardEvent, useState } from 'react';
+import { KeyboardEvent, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { BrandWordmark } from '@/components/brand/wordmark';
+import { AuthMobileHero } from '@/components/auth/auth-mobile-hero';
 import {
   consumeBrowserAction,
   resetBrowserAction,
@@ -11,6 +13,7 @@ import {
 import {
   getSupabaseBrowserClient,
   getSupabaseBrowserEnvErrorMessage,
+  hasSupabaseBrowserEnv,
 } from '@/lib/supabase/client';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -111,11 +114,50 @@ const GoogleIcon = () => (
 );
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (!hasSupabaseBrowserEnv()) {
+      return;
+    }
+
+    let isActive = true;
+    const supabase = getSupabaseBrowserClient();
+
+    const syncSession = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (isActive && session?.user) {
+          router.replace('/dashboard');
+        }
+      } catch {
+        // Ignore setup/runtime issues here and let the page render its normal auth UI.
+      }
+    };
+
+    void syncSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (isActive && session?.user) {
+        router.replace('/dashboard');
+      }
+    });
+
+    return () => {
+      isActive = false;
+      subscription.unsubscribe();
+    };
+  }, [router]);
 
   const handleSubmit = async () => {
     if (loading) {
@@ -280,6 +322,12 @@ export default function LoginPage() {
 
         <section className="flex min-h-full bg-[#0A0F1A]/70 px-5 py-6 sm:px-8 sm:py-8 lg:px-12">
           <div className="mx-auto flex w-full max-w-[390px] flex-col justify-center">
+            <AuthMobileHero
+              description="myCELIA helps serious aspirants turn scattered notes into sustained preparation, with every session adding clarity, continuity, and exam-ready practice."
+              eyebrow="Serious UPSC Prep"
+              title="Build preparation that carries forward every time you return."
+            />
+
             <div className="mb-8 hidden justify-end text-right text-sm text-[#9CA3AF] lg:flex">
               <span>
                 No account yet?{' '}
@@ -293,11 +341,7 @@ export default function LoginPage() {
             </div>
 
             <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(31,41,55,0.88),rgba(17,24,39,0.96))] px-5 py-6 shadow-[0_24px_70px_rgba(0,0,0,0.32)] sm:px-6 sm:py-7">
-              <div className="lg:hidden">
-                <BrandWordmark size="sm" />
-              </div>
-
-              <div className="mt-6 lg:mt-0">
+              <div className="mt-0">
                 <h2 className="text-[28px] font-bold tracking-[-0.04em] text-[#F9FAFB] sm:text-[30px]">
                   Welcome back
                 </h2>

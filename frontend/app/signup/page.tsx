@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { Inter } from 'next/font/google';
-import { KeyboardEvent, useState } from 'react';
-import { BrandWordmark } from '@/components/brand/wordmark';
+import { KeyboardEvent, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { AuthMobileHero } from '@/components/auth/auth-mobile-hero';
 import {
   consumeBrowserAction,
   resetBrowserAction,
@@ -11,6 +12,7 @@ import {
 import {
   getSupabaseBrowserClient,
   getSupabaseBrowserEnvErrorMessage,
+  hasSupabaseBrowserEnv,
 } from '@/lib/supabase/client';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -177,6 +179,7 @@ const CheckIcon = () => (
 );
 
 export default function SignupPage() {
+  const router = useRouter();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -188,6 +191,44 @@ export default function SignupPage() {
   const [successEmail, setSuccessEmail] = useState('');
 
   const passwordStrength = getPasswordStrength(password);
+
+  useEffect(() => {
+    if (!hasSupabaseBrowserEnv()) {
+      return;
+    }
+
+    let isActive = true;
+    const supabase = getSupabaseBrowserClient();
+
+    const syncSession = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (isActive && session?.user) {
+          router.replace('/dashboard');
+        }
+      } catch {
+        // Ignore setup/runtime issues here and let the page render its normal auth UI.
+      }
+    };
+
+    void syncSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (isActive && session?.user) {
+        router.replace('/dashboard');
+      }
+    });
+
+    return () => {
+      isActive = false;
+      subscription.unsubscribe();
+    };
+  }, [router]);
 
   const handleSubmit = async () => {
     if (loading) {
@@ -373,6 +414,12 @@ export default function SignupPage() {
 
       <section className="flex min-h-screen bg-[#0A0F1A] px-5 py-6 sm:px-8 sm:py-8 lg:px-12">
         <div className="mx-auto flex w-full max-w-[380px] flex-col justify-center">
+          <AuthMobileHero
+            description="Create your account once, and return to a workspace where your notes, questions, and progress stay connected."
+            eyebrow="Serious UPSC Prep"
+            title="Start with a workspace designed to compound your preparation."
+          />
+
           {successEmail ? (
             <div className="flex flex-col items-center text-center">
               <CheckIcon />
@@ -409,11 +456,7 @@ export default function SignupPage() {
                 </span>
               </div>
 
-              <div className="lg:hidden">
-                <BrandWordmark size="sm" />
-              </div>
-
-              <div className="mt-6 lg:mt-0">
+              <div className="mt-0">
                 <h2 className="text-[28px] font-bold tracking-[-0.03em] text-[#F9FAFB] sm:text-[30px]">
                   Create your account
                 </h2>

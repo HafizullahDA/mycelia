@@ -157,6 +157,7 @@ export function DashboardUploadWorkspace() {
 
   const [user, setUser] = useState<User | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
+  const [signingOut, setSigningOut] = useState(false);
   const [mode, setMode] = useState<UploadMode>('file');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [textInput, setTextInput] = useState('');
@@ -215,12 +216,14 @@ export function DashboardUploadWorkspace() {
     const loadUser = async () => {
       const supabase = getSupabaseBrowserClient();
       const {
-        data: { user: currentUser },
-      } = await supabase.auth.getUser();
+        data: { session },
+      } = await supabase.auth.getSession();
 
       if (!isActive) {
         return;
       }
+
+      const currentUser = session?.user ?? null;
 
       if (!currentUser) {
         setUser(null);
@@ -338,6 +341,26 @@ export function DashboardUploadWorkspace() {
     setGenerationSource(source);
     setSuccessMessage('Your notes are uploaded. myCELIA is preparing the quiz now.');
     setAutoGenerateToken((current) => current + 1);
+  };
+
+  const handleSignOut = async () => {
+    if (signingOut) {
+      return;
+    }
+
+    setSigningOut(true);
+    setError('');
+    setSuccessMessage('');
+
+    try {
+      await getSupabaseBrowserClient().auth.signOut();
+    } catch {
+      // Fall through to redirect so the user is not trapped in the workspace.
+    } finally {
+      setUser(null);
+      router.replace('/login');
+      setSigningOut(false);
+    }
   };
 
   const handleFileGenerate = async () => {
@@ -561,18 +584,39 @@ export function DashboardUploadWorkspace() {
       <div className="mx-auto max-w-7xl">
         <section className="overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,24,39,0.94),rgba(10,15,26,0.98))] shadow-[0_28px_90px_rgba(0,0,0,0.38)]">
           <div className="px-5 py-6 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
-            <div className="max-w-3xl">
-              <BrandWordmark size="sm" />
-              <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#C8A44A] sm:mt-7 sm:text-xs sm:tracking-[0.32em]">
-                UPSC Practice
-              </p>
-              <h1 className="mt-3 max-w-2xl text-[2rem] font-bold leading-[1.02] tracking-[-0.05em] text-[#F9FAFB] sm:text-[2.6rem] lg:text-5xl">
-                Generate MCQs from your notes.
-              </h1>
-              <p className="mt-4 max-w-2xl text-sm leading-6 text-[#9CA3AF] sm:text-[15px] sm:leading-7">
-                Upload a PDF, image, or pasted notes, choose how many questions you want, and move
-                straight into practice.
-              </p>
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+              <div className="max-w-3xl">
+                <BrandWordmark size="sm" />
+                <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#C8A44A] sm:mt-7 sm:text-xs sm:tracking-[0.32em]">
+                  UPSC Practice
+                </p>
+                <h1 className="mt-3 max-w-2xl text-[2rem] font-bold leading-[1.02] tracking-[-0.05em] text-[#F9FAFB] sm:text-[2.6rem] lg:text-5xl">
+                  Generate MCQs from your notes.
+                </h1>
+                <p className="mt-4 max-w-2xl text-sm leading-6 text-[#9CA3AF] sm:text-[15px] sm:leading-7">
+                  Upload a PDF, image, or pasted notes, choose how many questions you want, and move
+                  straight into practice.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 sm:min-w-[220px] sm:flex-col sm:items-end">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#6B7280]">
+                    Signed in
+                  </p>
+                  <p className="mt-1 truncate text-sm text-[#F9FAFB]">{user.email ?? 'Active session'}</p>
+                </div>
+                <button
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-white/10 bg-[#0A0F1A] px-4 text-sm font-medium text-[#F9FAFB] transition hover:border-[#C8A44A]/40 hover:text-[#C8A44A] disabled:cursor-not-allowed disabled:opacity-70"
+                  disabled={signingOut}
+                  onClick={() => {
+                    void handleSignOut();
+                  }}
+                  type="button"
+                >
+                  {signingOut ? 'Signing out...' : 'Sign out'}
+                </button>
+              </div>
             </div>
           </div>
 
