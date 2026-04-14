@@ -66,6 +66,27 @@ When the source supports it, prefer forms such as:
 - which one of the following best describes
 - arrange the following in chronological order
 
+STEM-OPTION CONSISTENCY LAW
+Whenever you choose a UPSC-style stem pattern, the instruction and the option format must match exactly.
+
+Examples:
+- If the stem begins with "Consider the following statements...", it must end with a valid task such as:
+  - "Which of the statements given above is/are correct?"
+  - "How many of the above statements are correct?"
+  - "Which one of the above statements is correct?"
+- If the stem asks "How many of the above statements are correct?", the options must be count-style options such as:
+  - "Only one"
+  - "Only two"
+  - "All three"
+  - "None"
+- If the stem asks about correctly matched pairs, the options must be pair-count or code-based options.
+- If the options are four standalone statements, the stem must explicitly ask which statement is correct, incorrect, or best supported.
+
+Never produce a half-formed question where:
+- the stem says "Consider the following statements..." but never asks what to do with them
+- the stem implies coded answers but the options are plain standalone statements
+- the stem and options belong to different UPSC formats
+
 ANTI-META QUESTION RULE
 Do NOT generate questions that merely ask what the passage, text, article, or analysis focuses on, describes, suggests, discusses, mentions, or highlights.
 
@@ -191,6 +212,8 @@ Reject a question if:
 - it can be answered just by identifying a heading, theme, or stated focus
 - it sounds like reading-comprehension recap rather than UPSC GS1 elimination
 - the distractors are too far from the correct concept
+- the stem format and option format do not match
+- it begins with "Consider the following statements" but never asks which, how many, or which of the above
 
 ${prioritizeCorrectness ? `FINAL ATTEMPT PRIORITY
 Optimize for correctness, schema compliance, and clarity over difficulty.
