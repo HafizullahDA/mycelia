@@ -383,9 +383,7 @@ export function QuizSessionPanel({
                     : 'border-white/8 bg-white/[0.02] text-[#C9D1DE] hover:border-white/15 hover:bg-white/[0.04]';
                 const feedbackToneClass = shouldShowCorrect ? 'text-emerald-300' : 'text-red-300';
                 const feedbackLabel = shouldShowCorrect ? 'Right answer' : 'Not quite';
-                const feedbackText = shouldShowCorrect
-                  ? currentQuestion.sourceSupport || currentQuestion.explanation
-                  : currentQuestion.explanation;
+                const feedbackText = currentQuestion.explanation;
 
                 return (
                   <button
@@ -408,7 +406,7 @@ export function QuizSessionPanel({
                               <span>{feedbackLabel}</span>
                             </div>
                             <p className="mt-2 text-sm leading-6 opacity-95">{feedbackText}</p>
-                            {!shouldShowCorrect && currentQuestion.sourceSupport ? (
+                            {currentQuestion.sourceSupport ? (
                               <p className="mt-2 text-sm leading-6 text-[#9CA3AF]">
                                 {currentQuestion.sourceSupport}
                               </p>

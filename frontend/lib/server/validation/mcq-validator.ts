@@ -1,6 +1,19 @@
 import type { PromptMcq, PromptMcqPayload, McqOptionId } from '@/lib/server/validation/mcq-types';
 
 const OPTION_IDS = ['A', 'B', 'C', 'D'] as const;
+const DISALLOWED_METADATA_PHRASES = [
+  'the source states',
+  'the source text states',
+  'the source text mentions',
+  'the provided text states',
+  'the provided text mentions',
+  'according to the source',
+  'according to the passage',
+  'the passage says',
+  'the text says',
+  'based on the source',
+  'based on the passage',
+] as const;
 
 const asTrimmedString = (value: unknown, errorMessage: string): string => {
   if (typeof value !== 'string' || !value.trim()) {
@@ -92,6 +105,33 @@ const ensureQuestionQuality = ({
   }
 };
 
+const ensureProfessionalFeedbackLanguage = ({
+  explanation,
+  sourceSupport,
+  index,
+}: {
+  explanation: string;
+  sourceSupport: string;
+  index: number;
+}) => {
+  const normalizedExplanation = explanation.toLowerCase();
+  const normalizedSourceSupport = sourceSupport.toLowerCase();
+
+  for (const phrase of DISALLOWED_METADATA_PHRASES) {
+    if (normalizedExplanation.includes(phrase)) {
+      throw new Error(
+        `Question ${index + 1} explanation uses prototype-style wording ("${phrase}").`,
+      );
+    }
+
+    if (normalizedSourceSupport.includes(phrase)) {
+      throw new Error(
+        `Question ${index + 1} sourceSupport uses prototype-style wording ("${phrase}").`,
+      );
+    }
+  }
+};
+
 const ensureStemOptionConsistency = ({
   question,
   options,
@@ -173,6 +213,11 @@ const validateSingleQuestion = (value: unknown, index: number): PromptMcq => {
   ensureQuestionQuality({
     question,
     options,
+    explanation,
+    sourceSupport,
+    index,
+  });
+  ensureProfessionalFeedbackLanguage({
     explanation,
     sourceSupport,
     index,
