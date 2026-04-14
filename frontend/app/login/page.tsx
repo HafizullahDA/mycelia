@@ -221,14 +221,14 @@ export default function LoginPage() {
 
             <div className="my-auto max-w-[36rem]">
               <p className="text-[11px] font-semibold uppercase tracking-[0.36em] text-[#C8A44A]">
-                Intelligence Layer
+                Serious UPSC Prep
               </p>
               <h1 className="mt-5 text-5xl font-bold leading-[1.02] tracking-[-0.05em] text-[#F9FAFB] lg:text-[3.8rem]">
-                Preparation that compounds instead of resetting every session.
+                Build preparation that carries forward every time you return.
               </h1>
               <p className="mt-6 max-w-xl text-[15px] leading-8 text-[#9CA3AF]">
-                myCELIA is being shaped as a serious UPSC preparation system, not a disposable quiz
-                toy. The interface should feel calm, sharp, and high-agency.
+                myCELIA helps serious aspirants turn scattered notes into sustained preparation,
+                with every session adding clarity, continuity, and exam-ready practice.
               </p>
 
               <div className="mt-10 grid gap-4 sm:grid-cols-3">
