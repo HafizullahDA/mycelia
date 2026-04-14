@@ -12,7 +12,7 @@ Purpose:
 - generate UPSC-style MCQs from extracted notes or wiki-backed content
 
 Model:
-- Gemini 3.1 Pro
+- gemini-2.5-pro
 
 Expected responsibilities:
 - validate payload
@@ -25,7 +25,7 @@ Purpose:
 - extract usable text from PDF/image/text input
 
 Model:
-- Gemini Flash 3.x for OCR/extraction
+- gemini-2.5-flash for OCR/extraction and preprocessing
 
 Expected responsibilities:
 - normalize extracted text
@@ -37,7 +37,7 @@ Purpose:
 - convert extracted content into structured concept knowledge
 
 Model:
-- Gemini 3.1 Pro
+- gemini-2.5-pro
 
 ### 4. `POST /api/quiz/file-back`
 Purpose:

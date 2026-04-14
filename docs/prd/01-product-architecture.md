@@ -24,7 +24,7 @@ Responsibilities:
 
 Primary tools:
 - Supabase Storage
-- Gemini Flash 3.x for OCR/extraction
+- gemini-2.5-flash for OCR/extraction and preprocessing
 
 ## 2. Knowledge layer
 This is the heart of myCELIA.
@@ -43,7 +43,7 @@ Responsibilities:
 Primary tools:
 - Supabase tables
 - markdown/wiki-style content
-- Gemini 3.1 Pro for concept compilation and linking
+- gemini-2.5-pro for concept compilation and linking
 
 ## 3. Feedback layer
 This is what makes the product compound.

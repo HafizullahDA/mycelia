@@ -2,9 +2,12 @@
 
 import Link from 'next/link';
 import { Inter } from 'next/font/google';
-import { KeyboardEvent, useMemo, useState } from 'react';
-import { BrandWordmark } from '@/components/brand-wordmark';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { KeyboardEvent, useState } from 'react';
+import { BrandWordmark } from '@/components/brand/wordmark';
+import {
+  getSupabaseBrowserClient,
+  getSupabaseBrowserEnvErrorMessage,
+} from '@/lib/supabase/client';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -54,8 +57,6 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState('');
   const [successEmail, setSuccessEmail] = useState('');
 
-  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-
   const handleSubmit = async () => {
     if (loading) {
       return;
@@ -69,9 +70,21 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setError('');
 
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
+    let resetError: { message: string } | null = null;
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const response = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      resetError = response.error;
+    } catch (clientError) {
+      setError(
+        clientError instanceof Error ? clientError.message : getSupabaseBrowserEnvErrorMessage(),
+      );
+      setLoading(false);
+      return;
+    }
 
     if (resetError) {
       setError(mapResetError(resetError.message));
@@ -92,9 +105,9 @@ export default function ForgotPasswordPage() {
 
   return (
     <main
-      className={`${inter.className} min-h-screen bg-[#0A0F1A] text-[#F9FAFB] md:grid md:grid-cols-2`}
+      className={`${inter.className} min-h-screen bg-[#0A0F1A] text-[#F9FAFB] lg:grid lg:grid-cols-2`}
     >
-      <section className="relative hidden overflow-hidden border-r border-white/5 bg-gradient-to-br from-[#0A0F1A] via-[#0E1522] to-[#111827] md:flex">
+      <section className="relative hidden overflow-hidden border-r border-white/5 bg-gradient-to-br from-[#0A0F1A] via-[#0E1522] to-[#111827] lg:flex">
         <div
           aria-hidden="true"
           className="absolute inset-y-0 left-[-20%] w-[75%] blur-3xl"
@@ -137,7 +150,7 @@ export default function ForgotPasswordPage() {
         </div>
       </section>
 
-      <section className="flex min-h-screen bg-[#0A0F1A] px-6 py-8 sm:px-8 md:px-12">
+      <section className="flex min-h-screen bg-[#0A0F1A] px-5 py-6 sm:px-8 sm:py-8 lg:px-12">
         <div className="mx-auto flex w-full max-w-[380px] flex-col justify-center">
           {successEmail ? (
             <div className="flex flex-col items-center text-center">
@@ -163,7 +176,7 @@ export default function ForgotPasswordPage() {
             </div>
           ) : (
             <>
-              <div className="mb-10 hidden justify-end text-right text-sm text-[#9CA3AF] md:flex">
+              <div className="mb-8 hidden justify-end text-right text-sm text-[#9CA3AF] lg:flex">
                 <span>
                   Remembered it?{' '}
                   <Link
@@ -175,8 +188,12 @@ export default function ForgotPasswordPage() {
                 </span>
               </div>
 
-              <div>
-                <h2 className="text-[28px] font-bold tracking-[-0.03em] text-[#F9FAFB]">
+              <div className="lg:hidden">
+                <BrandWordmark size="sm" />
+              </div>
+
+              <div className="mt-6 lg:mt-0">
+                <h2 className="text-[28px] font-bold tracking-[-0.03em] text-[#F9FAFB] sm:text-[30px]">
                   Reset your password
                 </h2>
                 <p className="mt-1.5 text-sm leading-6 text-[#9CA3AF]">
@@ -232,7 +249,7 @@ export default function ForgotPasswordPage() {
                 </button>
               </div>
 
-              <div className="mt-8 text-center text-[13px] text-[#9CA3AF] md:hidden">
+              <div className="mt-8 text-center text-[13px] text-[#9CA3AF] lg:hidden">
                 Remembered it?{' '}
                 <Link
                   className="font-medium text-[#C8A44A] transition hover:text-[#D8B55B]"
