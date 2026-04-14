@@ -5,6 +5,10 @@ import { Inter } from 'next/font/google';
 import { KeyboardEvent, useState } from 'react';
 import { BrandWordmark } from '@/components/brand/wordmark';
 import {
+  consumeBrowserAction,
+  resetBrowserAction,
+} from '@/lib/supabase/browser-action-throttle';
+import {
   getSupabaseBrowserClient,
   getSupabaseBrowserEnvErrorMessage,
 } from '@/lib/supabase/client';
@@ -210,6 +214,19 @@ export default function SignupPage() {
       return;
     }
 
+    const throttle = consumeBrowserAction({
+      action: 'signup-password',
+      limit: 4,
+      windowMs: 10 * 60_000,
+    });
+
+    if (!throttle.allowed) {
+      setError(
+        `Too many sign-up attempts. Please wait ${throttle.retryAfterSeconds} seconds and try again.`,
+      );
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -242,12 +259,26 @@ export default function SignupPage() {
       return;
     }
 
+    resetBrowserAction('signup-password');
     setSuccessEmail(email.trim());
     setLoading(false);
   };
 
   const handleGoogleSignIn = async () => {
     if (loading) {
+      return;
+    }
+
+    const throttle = consumeBrowserAction({
+      action: 'signup-google',
+      limit: 3,
+      windowMs: 60_000,
+    });
+
+    if (!throttle.allowed) {
+      setError(
+        `Please wait ${throttle.retryAfterSeconds} seconds before trying Google sign-up again.`,
+      );
       return;
     }
 

@@ -1,6 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdminClient } from '@/lib/server/supabase-admin';
+import {
+  createRequestLogContext,
+  getRequestDurationMs,
+  logRequestError,
+  logRequestInfo,
+  logRequestWarn,
+} from '@/lib/server/observability';
 import { readQuizToken } from '@/lib/server/quiz-token';
+import { applyRateLimit, getClientAddress } from '@/lib/server/rate-limit';
 import { saveQuizResults } from '@/lib/server/save-quiz-results';
 import type {
   McqOptionId,
@@ -101,12 +109,53 @@ const buildSaveQuizResultsInput = (
 };
 
 export async function POST(request: Request) {
+  const context = createRequestLogContext('/api/quiz/file-back', request);
+  const rateLimit = applyRateLimit({
+    key: `quiz-save:${getClientAddress(request)}`,
+    limit: 20,
+    windowMs: 10 * 60 * 1000,
+  });
+
+  if (!rateLimit.allowed) {
+    logRequestWarn(context, 'rate_limit_rejected', {
+      retryAfterSeconds: rateLimit.retryAfterSeconds,
+    });
+
+    return NextResponse.json(
+      {
+        error: 'Too many save attempts. Please wait a few minutes and try again.',
+        requestId: context.requestId,
+      },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(rateLimit.retryAfterSeconds),
+          'X-Request-Id': context.requestId,
+        },
+      },
+    );
+  }
+
   try {
     const authorization = request.headers.get('authorization') ?? '';
     const accessToken = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
 
     if (!accessToken) {
-      return NextResponse.json({ error: 'Sign in again before saving quiz results.' }, { status: 401 });
+      logRequestWarn(context, 'request_rejected', {
+        status: 401,
+        durationMs: getRequestDurationMs(context),
+        reason: 'missing_access_token',
+      });
+
+      return NextResponse.json(
+        { error: 'Sign in again before saving quiz results.', requestId: context.requestId },
+        {
+          status: 401,
+          headers: {
+            'X-Request-Id': context.requestId,
+          },
+        },
+      );
     }
 
     const supabase = getSupabaseAdminClient();
@@ -116,7 +165,21 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser(accessToken);
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'Your session could not be verified.' }, { status: 401 });
+      logRequestWarn(context, 'request_rejected', {
+        status: 401,
+        durationMs: getRequestDurationMs(context),
+        reason: 'invalid_session',
+      });
+
+      return NextResponse.json(
+        { error: 'Your session could not be verified.', requestId: context.requestId },
+        {
+          status: 401,
+          headers: {
+            'X-Request-Id': context.requestId,
+          },
+        },
+      );
     }
 
     const body = (await request.json()) as Record<string, unknown>;
@@ -125,9 +188,37 @@ export async function POST(request: Request) {
     const input = buildSaveQuizResultsInput(submission);
     const result = await saveQuizResults(user.id, input);
 
-    return NextResponse.json({ result });
+    logRequestInfo(context, 'request_completed', {
+      status: 200,
+      durationMs: getRequestDurationMs(context),
+      correctCount: result.correctCount,
+      questionCount: result.questionCount,
+      scorePercent: result.scorePercent,
+    });
+
+    return NextResponse.json(
+      { result, requestId: context.requestId },
+      {
+        headers: {
+          'X-Request-Id': context.requestId,
+        },
+      },
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Quiz results could not be saved.';
-    return NextResponse.json({ error: message }, { status: 400 });
+    logRequestError(context, 'request_failed', error, {
+      status: 400,
+      durationMs: getRequestDurationMs(context),
+    });
+
+    return NextResponse.json(
+      { error: message, requestId: context.requestId },
+      {
+        status: 400,
+        headers: {
+          'X-Request-Id': context.requestId,
+        },
+      },
+    );
   }
 }
