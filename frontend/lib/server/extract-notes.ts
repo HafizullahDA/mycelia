@@ -9,10 +9,12 @@ type ExtractNotesInput =
   | {
       inputType: 'text';
       rawText: string;
+      sourceUploadId?: string;
       title?: string;
     }
   | {
       inputType: 'storage';
+      sourceUploadId?: string;
       storagePath: string;
       mimeType: string;
       title?: string;
@@ -29,6 +31,13 @@ type ExtractNotesResult = {
 const MAX_VERTEX_INLINE_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_PDF_PAGES_PER_CHUNK = 12;
 const require = createRequire(import.meta.url);
+
+type CachedSourceUpload = {
+  id: string;
+  title: string | null;
+  raw_text: string | null;
+  extraction_status: string | null;
+};
 
 const normalizeText = (value: string): string =>
   value
@@ -258,6 +267,48 @@ const extractPdfTextLocally = async (fileBytes: ArrayBuffer) => {
   return normalizeText(textResult.text);
 };
 
+const loadCachedExtraction = async (
+  sourceUploadId?: string,
+): Promise<CachedSourceUpload | null> => {
+  if (!sourceUploadId) {
+    return null;
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from('source_uploads')
+    .select('id, title, raw_text, extraction_status')
+    .eq('id', sourceUploadId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data as CachedSourceUpload;
+};
+
+const updateCachedExtraction = async (input: {
+  sourceUploadId?: string;
+  rawText?: string;
+  extractionStatus: 'processing' | 'completed' | 'failed';
+}): Promise<void> => {
+  if (!input.sourceUploadId) {
+    return;
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const payload: Record<string, string | null> = {
+    extraction_status: input.extractionStatus,
+  };
+
+  if (typeof input.rawText === 'string') {
+    payload.raw_text = input.rawText;
+  }
+
+  await supabase.from('source_uploads').update(payload).eq('id', input.sourceUploadId);
+};
+
 export const extractNotes = async (input: ExtractNotesInput): Promise<ExtractNotesResult> => {
   if (input.inputType === 'text') {
     const extractedText = normalizeText(input.rawText);
@@ -280,9 +331,35 @@ export const extractNotes = async (input: ExtractNotesInput): Promise<ExtractNot
   }
 
   const supabase = getSupabaseAdminClient();
+
+  const cachedExtraction = await loadCachedExtraction(input.sourceUploadId);
+
+  if (cachedExtraction?.raw_text?.trim()) {
+    const extractedText = normalizeText(cachedExtraction.raw_text);
+
+    if (extractedText) {
+      return {
+        title: input.title?.trim() || cachedExtraction.title?.trim() || 'Uploaded notes',
+        extractedText,
+        keyTopics: deriveKeyTopicsFromText(extractedText),
+        method: 'normalized_text',
+        characterCount: extractedText.length,
+      };
+    }
+  }
+
+  await updateCachedExtraction({
+    sourceUploadId: input.sourceUploadId,
+    extractionStatus: 'processing',
+  });
+
   const { data, error } = await supabase.storage.from('raw-notes').download(input.storagePath);
 
   if (error || !data) {
+    await updateCachedExtraction({
+      sourceUploadId: input.sourceUploadId,
+      extractionStatus: 'failed',
+    });
     throw new Error('The uploaded file could not be loaded from storage.');
   }
 
@@ -292,6 +369,12 @@ export const extractNotes = async (input: ExtractNotesInput): Promise<ExtractNot
     const localPdfText = await extractPdfTextLocally(fileBytes);
 
     if (localPdfText.length >= 500) {
+      await updateCachedExtraction({
+        sourceUploadId: input.sourceUploadId,
+        extractionStatus: 'completed',
+        rawText: localPdfText,
+      });
+
       return {
         title: input.title?.trim() || 'Uploaded notes',
         extractedText: localPdfText,
@@ -302,6 +385,12 @@ export const extractNotes = async (input: ExtractNotesInput): Promise<ExtractNot
     }
 
     const extracted = await extractPdfWithVertexAi(fileBytes, input.title);
+
+    await updateCachedExtraction({
+      sourceUploadId: input.sourceUploadId,
+      extractionStatus: 'completed',
+      rawText: extracted.extractedText,
+    });
 
     return {
       ...extracted,
@@ -317,6 +406,12 @@ export const extractNotes = async (input: ExtractNotesInput): Promise<ExtractNot
   }
 
   const extracted = await extractTextWithVertexAi(fileBytes, input.mimeType, input.title);
+
+  await updateCachedExtraction({
+    sourceUploadId: input.sourceUploadId,
+    extractionStatus: 'completed',
+    rawText: extracted.extractedText,
+  });
 
   return {
     ...extracted,

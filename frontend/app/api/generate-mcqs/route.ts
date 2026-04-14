@@ -52,6 +52,7 @@ export async function POST(request: Request) {
     const keyTopics = Array.isArray(body.keyTopics)
       ? body.keyTopics.filter((topic): topic is string => typeof topic === 'string')
       : [];
+    const sourceUploadId = typeof body.sourceUploadId === 'string' ? body.sourceUploadId : undefined;
     const inputType = body.inputType;
 
     if (extractedText.trim()) {
@@ -93,6 +94,7 @@ export async function POST(request: Request) {
         questionCount,
         source: {
           inputType: 'text',
+          sourceUploadId,
           rawText,
         },
       });
@@ -129,6 +131,7 @@ export async function POST(request: Request) {
         questionCount,
         source: {
           inputType: 'storage',
+          sourceUploadId,
           storagePath,
           mimeType,
         },
