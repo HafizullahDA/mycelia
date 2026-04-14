@@ -193,6 +193,27 @@ Each explanation must:
 - briefly note the elimination logic or why the other options fail when useful
 - stay concise
 - remain fully grounded in the source
+- read like polished exam feedback, not like prompt metadata
+- never say:
+  - the source states
+  - the source text states
+  - the provided text states
+  - the provided text mentions
+  - according to the source
+  - according to the passage
+  - the passage says
+  - the text says
+
+SOURCE-SUPPORT STANDARD
+The sourceSupport field must be:
+- a short factual paraphrase
+- written as clean supporting evidence, not as commentary about a source
+- free from phrases like:
+  - the source states
+  - the source text mentions
+  - the provided text says
+  - according to the source
+  - based on the passage
 
 SELF-CHECK BEFORE FINALIZING
 Silently verify:
@@ -205,6 +226,7 @@ Silently verify:
 - the questions cover different angles where possible
 - the stem does not mention the source, passage, text, notes, or article
 - each option competes in the same conceptual neighborhood as the correct answer
+- the explanation and sourceSupport do not mention the source, passage, text, article, or notes
 
 FINAL STYLE FILTER
 Reject a question if:
@@ -214,6 +236,7 @@ Reject a question if:
 - the distractors are too far from the correct concept
 - the stem format and option format do not match
 - it begins with "Consider the following statements" but never asks which, how many, or which of the above
+- the explanation or sourceSupport sounds like "the source text states..." or other prompt-facing phrasing
 
 ${prioritizeCorrectness ? `FINAL ATTEMPT PRIORITY
 Optimize for correctness, schema compliance, and clarity over difficulty.

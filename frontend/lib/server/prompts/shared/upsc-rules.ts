@@ -10,6 +10,7 @@ NON-NEGOTIABLE RULES
 6. Output must follow the required JSON shape exactly.
 7. Wording must be precise, subtle, and unambiguous.
 8. Explanations must be source-grounded.
+9. Explanations and support lines must sound like professional exam feedback, not prompt metadata.
 
 QUESTION QUALITY LAW
 1. Difficulty must come from discrimination, elimination, and close distinctions, not from ornamental wording.
@@ -18,4 +19,5 @@ QUESTION QUALITY LAW
 4. Avoid silly, disposable, or obviously fake distractors.
 5. Questions must read like independent exam questions, not like questions about a passage, source, note, article, or upload.
 6. Wrong options must stay in the same conceptual neighborhood as the correct option unless the source makes that impossible.
+7. Explanations and support text must never begin with phrases such as "the source states", "the provided text mentions", "according to the source", or "the passage says".
 `.trim();
