@@ -5,7 +5,7 @@ import { fetchVertexAiGenerateContent } from '@/lib/server/vertex-ai';
 import { createRequire } from 'node:module';
 import { PDFDocument } from 'pdf-lib';
 
-export type ExtractNotesInput =
+type ExtractNotesInput =
   | {
       inputType: 'text';
       rawText: string;
@@ -18,7 +18,7 @@ export type ExtractNotesInput =
       title?: string;
     };
 
-export type ExtractNotesResult = {
+type ExtractNotesResult = {
   title: string;
   extractedText: string;
   keyTopics: string[];

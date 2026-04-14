@@ -6,7 +6,7 @@ type VertexAiConfig = {
 
 const VERTEX_REQUEST_TIMEOUT_MS = 180_000;
 
-export const getVertexAiConfig = (): VertexAiConfig => {
+const getVertexAiConfig = (): VertexAiConfig => {
   const apiKey = process.env.GOOGLE_CLOUD_API_KEY;
   const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID;
   const location = process.env.GEMINI_VERTEX_LOCATION ?? 'us-central1';
@@ -30,7 +30,7 @@ export const getVertexAiConfig = (): VertexAiConfig => {
   };
 };
 
-export const buildVertexAiModelPath = (model: string): string => {
+const buildVertexAiModelPath = (model: string): string => {
   if (model.startsWith('projects/') || model.startsWith('publishers/')) {
     return model;
   }
@@ -40,7 +40,7 @@ export const buildVertexAiModelPath = (model: string): string => {
   return `projects/${projectId}/locations/${location}/publishers/google/models/${model}`;
 };
 
-export const buildVertexAiGenerateContentUrl = (model: string): string => {
+const buildVertexAiGenerateContentUrl = (model: string): string => {
   const { apiKey } = getVertexAiConfig();
   const modelPath = buildVertexAiModelPath(model);
 
