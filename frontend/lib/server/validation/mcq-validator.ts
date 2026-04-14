@@ -92,6 +92,62 @@ const ensureQuestionQuality = ({
   }
 };
 
+const ensureStemOptionConsistency = ({
+  question,
+  options,
+  index,
+}: {
+  question: string;
+  options: [string, string, string, string];
+  index: number;
+}) => {
+  const normalizedQuestion = question.trim().toLowerCase();
+  const optionBodies = options.map((option) => option.slice(2).trim());
+  const normalizedOptionBodies = optionBodies.map((option) => option.toLowerCase());
+
+  const mentionsConsiderStatements = normalizedQuestion.includes('consider the following statements');
+  const asksHowMany =
+    normalizedQuestion.includes('how many of the above statements are correct') ||
+    normalizedQuestion.includes('how many of the following statements') ||
+    normalizedQuestion.includes('how many pairs given above are correctly matched') ||
+    normalizedQuestion.includes('how many of the above pairs are correctly matched');
+  const asksWhichAbove =
+    normalizedQuestion.includes('which of the statements given above') ||
+    normalizedQuestion.includes('which of the above statements') ||
+    normalizedQuestion.includes('which one of the above statements') ||
+    normalizedQuestion.includes('select the correct answer using the code given below') ||
+    normalizedQuestion.includes('select the correct answer using the code given below:') ||
+    normalizedQuestion.includes('select the correct answer using the code given below.');
+
+  const hasCountStyleOptions = normalizedOptionBodies.every((option) =>
+    /^(only|all|none|both|neither|\d)/.test(option),
+  );
+
+  const hasStandaloneStatementOptions = normalizedOptionBodies.every((option) => {
+    const startsLikeCount = /^(only|all|none|both|neither|\d)/.test(option);
+
+    return !startsLikeCount;
+  });
+
+  if (mentionsConsiderStatements && !asksHowMany && !asksWhichAbove) {
+    throw new Error(
+      `Question ${index + 1} uses a "Consider the following statements" stem without asking which or how many statements are correct.`,
+    );
+  }
+
+  if (asksHowMany && !hasCountStyleOptions) {
+    throw new Error(
+      `Question ${index + 1} asks "how many" but does not use count-style answer options.`,
+    );
+  }
+
+  if (mentionsConsiderStatements && hasStandaloneStatementOptions && !asksWhichAbove) {
+    throw new Error(
+      `Question ${index + 1} uses statement-style options without a compatible UPSC-style instruction.`,
+    );
+  }
+};
+
 const validateSingleQuestion = (value: unknown, index: number): PromptMcq => {
   if (!value || typeof value !== 'object') {
     throw new Error(`Question ${index + 1} is not a valid object.`);
@@ -119,6 +175,11 @@ const validateSingleQuestion = (value: unknown, index: number): PromptMcq => {
     options,
     explanation,
     sourceSupport,
+    index,
+  });
+  ensureStemOptionConsistency({
+    question,
+    options,
     index,
   });
 
