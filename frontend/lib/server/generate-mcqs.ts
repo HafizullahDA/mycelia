@@ -5,7 +5,7 @@ import { fetchVertexAiGenerateContent } from '@/lib/server/vertex-ai';
 import { createQuizToken } from '@/lib/server/quiz-token';
 import type { GeneratedMcq, McqOption, McqGenerationResult } from '@/lib/types/quiz';
 
-export type GenerateMcqsInput =
+type GenerateMcqsInput =
   | {
       title?: string;
       extractedText: string;

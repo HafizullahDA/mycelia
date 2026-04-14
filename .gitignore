@@ -9,3 +9,4 @@ npm-debug.log*
 .codex-dev-err.log
 .codex_analysis/
 analysis/
+*.tsbuildinfo
