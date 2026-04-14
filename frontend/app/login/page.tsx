@@ -214,9 +214,6 @@ export default function LoginPage() {
           <div className="relative z-10 flex min-h-full w-full flex-col px-10 py-10 lg:px-14 lg:py-12">
             <div className="flex items-center justify-between">
               <BrandWordmark />
-              <span className="rounded-full border border-[#C8A44A]/20 bg-[#C8A44A]/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#E7D29B]">
-                Phase 1 live
-              </span>
             </div>
 
             <div className="my-auto max-w-[36rem]">
