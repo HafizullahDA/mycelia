@@ -560,7 +560,7 @@ export function DashboardUploadWorkspace() {
     <main className="min-h-screen bg-[#0A0F1A] px-4 py-5 text-[#F9FAFB] sm:px-6 sm:py-8 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-7xl">
         <section className="overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,24,39,0.94),rgba(10,15,26,0.98))] shadow-[0_28px_90px_rgba(0,0,0,0.38)]">
-          <div className="flex flex-col gap-6 px-5 py-6 sm:px-6 sm:py-7 lg:flex-row lg:items-start lg:justify-between lg:px-8 lg:py-8">
+          <div className="px-5 py-6 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
             <div className="max-w-3xl">
               <BrandWordmark size="sm" />
               <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#C8A44A] sm:mt-7 sm:text-xs sm:tracking-[0.32em]">
@@ -572,17 +572,6 @@ export function DashboardUploadWorkspace() {
               <p className="mt-4 max-w-2xl text-sm leading-6 text-[#9CA3AF] sm:text-[15px] sm:leading-7">
                 Upload a PDF, image, or pasted notes, choose how many questions you want, and move
                 straight into practice.
-              </p>
-            </div>
-
-            <div className="w-full rounded-[24px] border border-white/10 bg-[#0F1726] px-5 py-4 text-sm text-[#9CA3AF] shadow-[0_20px_80px_rgba(0,0,0,0.3)] sm:max-w-md lg:w-auto">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#C8A44A]">
-                Session
-              </p>
-              <p className="mt-2 font-medium text-[#F9FAFB]">Signed in and ready</p>
-              <p className="mt-2 max-w-xs text-sm leading-6 text-[#9CA3AF]">
-                Your notes and quiz results stay connected to this account so you can generate
-                again whenever you need.
               </p>
             </div>
           </div>
