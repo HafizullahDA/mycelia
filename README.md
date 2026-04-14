@@ -25,6 +25,17 @@ From the repo root:
 Or directly:
 - `npm --prefix frontend run dev`
 
+## Basic health check
+Once the app is running, you can verify the core service state at:
+- `/api/health`
+
+The endpoint reports whether the app can currently see:
+- browser Supabase configuration
+- Vertex AI configuration
+- the `source_uploads` table
+- the `quiz_sessions` table
+- the `raw-notes` storage bucket
+
 ## Local environment setup
 Before running the frontend locally, create `frontend/.env.local`.
 
