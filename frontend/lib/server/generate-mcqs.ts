@@ -17,6 +17,7 @@ type GenerateMcqsInput =
       questionCount?: number;
       source: {
         inputType: 'text';
+        sourceUploadId?: string;
         rawText: string;
       };
     }
@@ -25,6 +26,7 @@ type GenerateMcqsInput =
       questionCount?: number;
       source: {
         inputType: 'storage';
+        sourceUploadId?: string;
         storagePath: string;
         mimeType: string;
       };
@@ -32,10 +34,11 @@ type GenerateMcqsInput =
 
 const MIN_QUESTION_COUNT = 5;
 const MAX_QUESTION_COUNT = 15;
-const MAX_DIRECT_MCQ_SOURCE_CHARS = 18_000;
+const MAX_DIRECT_MCQ_SOURCE_CHARS = 22_000;
 const COMPRESSION_CHUNK_CHARS = 40_000;
 const MAX_COMPRESSED_CONTEXT_CHARS = 20_000;
 const MAX_TRACKED_TOPICS = 10;
+const COMPRESSION_CONCURRENCY = 3;
 
 const normalizeQuestionCount = (value?: number): number => {
   if (!value || Number.isNaN(value)) {
@@ -142,6 +145,41 @@ const splitTextIntoChunks = (value: string, maxChunkChars: number): string[] => 
   return chunks;
 };
 
+const runWithConcurrency = async <T, R>(
+  items: T[],
+  concurrency: number,
+  task: (item: T, index: number) => Promise<R>,
+): Promise<R[]> => {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  const worker = async () => {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await task(items[currentIndex], currentIndex);
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => worker()),
+  );
+
+  return results;
+};
+
+const getMcqOutputTokenLimit = (questionCount: number): number => {
+  if (questionCount <= 5) {
+    return 3_072;
+  }
+
+  if (questionCount <= 10) {
+    return 4_608;
+  }
+
+  return 6_144;
+};
+
 const buildChunkCompressionPrompt = (input: {
   title?: string;
   keyTopics: string[];
@@ -238,52 +276,59 @@ const compressLargeSourceForMcqs = async (input: {
   }
 
   const chunks = splitTextIntoChunks(cleanedText, COMPRESSION_CHUNK_CHARS);
+  const chunkResults = await runWithConcurrency(
+    chunks,
+    COMPRESSION_CONCURRENCY,
+    async (chunkText, index) => {
+      const response = await fetchVertexAiGenerateContent(flashModel, {
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: buildChunkCompressionPrompt({
+                  title: input.title,
+                  keyTopics: input.keyTopics,
+                  chunkIndex: index,
+                  chunkCount: chunks.length,
+                  chunkText,
+                }),
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 1_200,
+          responseMimeType: 'application/json',
+        },
+      });
+
+      const data = (await response.json()) as {
+        candidates?: Array<{
+          content?: {
+            parts?: Array<{
+              text?: string;
+            }>;
+          };
+        }>;
+      };
+
+      const candidateText =
+        data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('\n') ?? '';
+      return parseJsonCandidate(candidateText) as
+        | {
+            summary?: string;
+            keyTopics?: string[];
+          }
+        | null;
+    },
+  );
+
   const summarySections: string[] = [];
   const collectedTopics = [...input.keyTopics];
 
-  for (let index = 0; index < chunks.length; index += 1) {
-    const response = await fetchVertexAiGenerateContent(flashModel, {
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              text: buildChunkCompressionPrompt({
-                title: input.title,
-                keyTopics: input.keyTopics,
-                chunkIndex: index,
-                chunkCount: chunks.length,
-                chunkText: chunks[index],
-              }),
-            },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.1,
-        responseMimeType: 'application/json',
-      },
-    });
-
-    const data = (await response.json()) as {
-      candidates?: Array<{
-        content?: {
-          parts?: Array<{
-            text?: string;
-          }>;
-        };
-      }>;
-    };
-
-    const candidateText =
-      data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('\n') ?? '';
-    const parsed = parseJsonCandidate(candidateText) as
-      | {
-          summary?: string;
-          keyTopics?: string[];
-        }
-      | null;
-
+  for (const parsed of chunkResults) {
     if (parsed?.summary?.trim()) {
       summarySections.push(parsed.summary.trim());
     }
@@ -328,6 +373,7 @@ const compressLargeSourceForMcqs = async (input: {
     ],
     generationConfig: {
       temperature: 0.1,
+      maxOutputTokens: 2_000,
       responseMimeType: 'application/json',
     },
   });
@@ -390,11 +436,12 @@ const mapPromptQuestionToGeneratedMcq = (
 });
 
 export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerationResult> => {
-  const model = process.env.GEMINI_PRO_MODEL;
+  const proModel = process.env.GEMINI_PRO_MODEL;
+  const flashModel = process.env.GEMINI_FLASH_MODEL;
 
-  if (!model) {
+  if (!proModel && !flashModel) {
     throw new Error(
-      'Missing Vertex AI configuration. Add GEMINI_PRO_MODEL to the frontend environment.',
+      'Missing Vertex AI configuration. Add GEMINI_FLASH_MODEL or GEMINI_PRO_MODEL to the frontend environment.',
     );
   }
 
@@ -411,10 +458,12 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
         ? {
             inputType: 'text',
             rawText: input.source.rawText,
+            sourceUploadId: input.source.sourceUploadId,
             title: input.title,
           }
         : {
             inputType: 'storage',
+            sourceUploadId: input.source.sourceUploadId,
             storagePath: input.source.storagePath,
             mimeType: input.source.mimeType,
             title: input.title,
@@ -437,16 +486,19 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
     keyTopics: topics,
   });
   let lastValidationError: Error | null = null;
-  const maxAttempts = 3;
+  const generationModels = Array.from(
+    new Set([flashModel, proModel].filter((model): model is string => Boolean(model))),
+  );
 
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+  for (let attempt = 0; attempt < generationModels.length; attempt += 1) {
+    const model = generationModels[attempt];
     const prompt = promptRegistry.mcq.upscGs1({
       title: resolvedTitle,
       questionCount,
       keyTopics: mcqSource.keyTopics,
       sourceText: mcqSource.sourceText,
       validationFeedback: lastValidationError?.message,
-      prioritizeCorrectness: attempt === maxAttempts - 1,
+      prioritizeCorrectness: model === proModel || attempt === generationModels.length - 1,
     });
 
     const response = await fetchVertexAiGenerateContent(model, {
@@ -458,6 +510,7 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
       ],
       generationConfig: {
         temperature: 0.25,
+        maxOutputTokens: getMcqOutputTokenLimit(questionCount),
         responseMimeType: 'application/json',
       },
     });

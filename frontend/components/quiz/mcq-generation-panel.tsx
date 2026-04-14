@@ -64,6 +64,7 @@ export function McqGenerationPanel({
         },
         body: JSON.stringify({
           title: generationSource.title,
+          sourceUploadId: generationSource.sourceUploadId,
           inputType: generationSource.inputType,
           ...(generationSource.inputType === 'text'
             ? {
