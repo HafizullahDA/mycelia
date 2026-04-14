@@ -17,7 +17,14 @@ export const getSupabaseBrowserClient = (): SupabaseClient => {
   }
 
   if (!supabaseBrowserClient) {
-    supabaseBrowserClient = createClient(supabaseUrl, supabaseAnonKey);
+    supabaseBrowserClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        persistSession: true,
+        storageKey: 'mycelia.auth',
+      },
+    });
   }
 
   return supabaseBrowserClient;
