@@ -5,6 +5,10 @@ import { Inter } from 'next/font/google';
 import { KeyboardEvent, useEffect, useState } from 'react';
 import { BrandWordmark } from '@/components/brand/wordmark';
 import {
+  consumeBrowserAction,
+  resetBrowserAction,
+} from '@/lib/supabase/browser-action-throttle';
+import {
   getSupabaseBrowserClient,
   getSupabaseBrowserEnvErrorMessage,
   hasSupabaseBrowserEnv,
@@ -237,6 +241,19 @@ export default function ResetPasswordPage() {
       return;
     }
 
+    const throttle = consumeBrowserAction({
+      action: 'reset-password-update',
+      limit: 4,
+      windowMs: 10 * 60_000,
+    });
+
+    if (!throttle.allowed) {
+      setError(
+        `Too many password reset attempts. Please wait ${throttle.retryAfterSeconds} seconds and try again.`,
+      );
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -262,6 +279,7 @@ export default function ResetPasswordPage() {
       return;
     }
 
+    resetBrowserAction('reset-password-update');
     setStatus('success');
     setLoading(false);
   };

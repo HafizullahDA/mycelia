@@ -1,4 +1,9 @@
 import { NextResponse } from 'next/server';
+import {
+  createRequestLogContext,
+  getRequestDurationMs,
+  logRequestInfo,
+} from '@/lib/server/observability';
 import { getSupabaseAdminClient } from '@/lib/server/supabase-admin';
 
 type CheckStatus = 'healthy' | 'unavailable';
@@ -67,7 +72,8 @@ const checkRawNotesBucket = async (): Promise<HealthCheck> => {
   }
 };
 
-export async function GET() {
+export async function GET(request: Request) {
+  const context = createRequestLogContext('/api/health', request);
   const checks: Record<string, HealthCheck> = {
     app: {
       status: 'healthy',
@@ -107,14 +113,24 @@ export async function GET() {
     ? 'healthy'
     : 'unavailable';
 
+  logRequestInfo(context, 'health_checked', {
+    status: overallStatus === 'healthy' ? 200 : 503,
+    durationMs: getRequestDurationMs(context),
+    overallStatus,
+  });
+
   return NextResponse.json(
     {
       status: overallStatus,
       checkedAt: new Date().toISOString(),
       checks,
+      requestId: context.requestId,
     },
     {
       status: overallStatus === 'healthy' ? 200 : 503,
+      headers: {
+        'X-Request-Id': context.requestId,
+      },
     },
   );
 }

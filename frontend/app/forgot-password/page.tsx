@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Inter } from 'next/font/google';
 import { KeyboardEvent, useState } from 'react';
 import { BrandWordmark } from '@/components/brand/wordmark';
+import { consumeBrowserAction, resetBrowserAction } from '@/lib/supabase/browser-action-throttle';
 import {
   getSupabaseBrowserClient,
   getSupabaseBrowserEnvErrorMessage,
@@ -67,6 +68,19 @@ export default function ForgotPasswordPage() {
       return;
     }
 
+    const throttle = consumeBrowserAction({
+      action: 'forgot-password',
+      limit: 3,
+      windowMs: 10 * 60_000,
+    });
+
+    if (!throttle.allowed) {
+      setError(
+        `Too many reset attempts. Please wait ${throttle.retryAfterSeconds} seconds and try again.`,
+      );
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -92,6 +106,7 @@ export default function ForgotPasswordPage() {
       return;
     }
 
+    resetBrowserAction('forgot-password');
     setSuccessEmail(email.trim());
     setLoading(false);
   };

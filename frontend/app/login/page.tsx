@@ -5,6 +5,10 @@ import { Inter } from 'next/font/google';
 import { KeyboardEvent, useState } from 'react';
 import { BrandWordmark } from '@/components/brand/wordmark';
 import {
+  consumeBrowserAction,
+  resetBrowserAction,
+} from '@/lib/supabase/browser-action-throttle';
+import {
   getSupabaseBrowserClient,
   getSupabaseBrowserEnvErrorMessage,
 } from '@/lib/supabase/client';
@@ -123,6 +127,19 @@ export default function LoginPage() {
       return;
     }
 
+    const throttle = consumeBrowserAction({
+      action: 'login-password',
+      limit: 5,
+      windowMs: 60_000,
+    });
+
+    if (!throttle.allowed) {
+      setError(
+        `Too many sign-in attempts. Please wait ${throttle.retryAfterSeconds} seconds and try again.`,
+      );
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -149,11 +166,25 @@ export default function LoginPage() {
       return;
     }
 
+    resetBrowserAction('login-password');
     window.location.href = '/dashboard';
   };
 
   const handleGoogleSignIn = async () => {
     if (loading) {
+      return;
+    }
+
+    const throttle = consumeBrowserAction({
+      action: 'login-google',
+      limit: 3,
+      windowMs: 60_000,
+    });
+
+    if (!throttle.allowed) {
+      setError(
+        `Please wait ${throttle.retryAfterSeconds} seconds before trying Google sign-in again.`,
+      );
       return;
     }
 
