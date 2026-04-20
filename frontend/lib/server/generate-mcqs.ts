@@ -49,20 +49,38 @@ const normalizeQuestionCount = (value?: number): number => {
 };
 
 const parseJsonCandidate = (value: string): unknown | null => {
+  const cleaned = value
+    .trim()
+    .replace(/^```(?:json)?/i, '')
+    .replace(/```$/i, '')
+    .trim();
+
   try {
-    return JSON.parse(value) as unknown;
+    return JSON.parse(cleaned) as unknown;
   } catch {
-    const match = value.match(/\{[\s\S]*\}/);
+    const candidates: string[] = [];
+    const objectStart = cleaned.indexOf('{');
+    const objectEnd = cleaned.lastIndexOf('}');
+    const arrayStart = cleaned.indexOf('[');
+    const arrayEnd = cleaned.lastIndexOf(']');
 
-    if (!match) {
-      return null;
+    if (objectStart >= 0 && objectEnd > objectStart) {
+      candidates.push(cleaned.slice(objectStart, objectEnd + 1));
     }
 
-    try {
-      return JSON.parse(match[0]) as unknown;
-    } catch {
-      return null;
+    if (arrayStart >= 0 && arrayEnd > arrayStart) {
+      candidates.push(cleaned.slice(arrayStart, arrayEnd + 1));
     }
+
+    for (const candidate of candidates) {
+      try {
+        return JSON.parse(candidate) as unknown;
+      } catch {
+        // Try the next plausible JSON boundary.
+      }
+    }
+
+    return null;
   }
 };
 
@@ -170,14 +188,14 @@ const runWithConcurrency = async <T, R>(
 
 const getMcqOutputTokenLimit = (questionCount: number): number => {
   if (questionCount <= 5) {
-    return 3_072;
+    return 4_096;
   }
 
   if (questionCount <= 10) {
-    return 4_608;
+    return 6_144;
   }
 
-  return 6_144;
+  return 8_192;
 };
 
 const buildChunkCompressionPrompt = (input: {
@@ -489,6 +507,7 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
   const generationModels = Array.from(
     new Set([flashModel, proModel].filter((model): model is string => Boolean(model))),
   );
+  let bestParsedPayload: ReturnType<typeof validatePromptMcqPayload> | null = null;
 
   for (let attempt = 0; attempt < generationModels.length; attempt += 1) {
     const model = generationModels[attempt];
@@ -531,6 +550,10 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
     try {
       const parsed = validatePromptMcqPayload(parseJsonCandidate(candidateText));
 
+      if (!bestParsedPayload || parsed.questions.length > bestParsedPayload.questions.length) {
+        bestParsedPayload = parsed;
+      }
+
       if (parsed.questions.length < questionCount) {
         throw new Error(`The model returned only ${parsed.questions.length} valid questions.`);
       }
@@ -559,5 +582,32 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
     }
   }
 
-  throw new Error(lastValidationError?.message ?? 'Vertex AI Pro did not return valid MCQ output.');
+  if (bestParsedPayload && bestParsedPayload.questions.length >= MIN_QUESTION_COUNT) {
+    const mcqs = bestParsedPayload.questions
+      .slice(0, questionCount)
+      .map(mapPromptQuestionToGeneratedMcq);
+    const title = resolvedTitle || 'Generated quiz';
+
+    return {
+      title,
+      questionCount: mcqs.length,
+      mcqs,
+      quizToken: createQuizToken({
+        title,
+        mcqs,
+      }),
+      qualityCheck: {
+        ...bestParsedPayload.qualityCheck,
+        notes:
+          bestParsedPayload.questions.length < questionCount
+            ? `Generated ${bestParsedPayload.questions.length} valid MCQs from this source.`
+            : bestParsedPayload.qualityCheck.notes,
+      },
+    };
+  }
+
+  throw new Error(
+    lastValidationError?.message ??
+      'The model response could not be shaped into a valid quiz. Please try again.',
+  );
 };

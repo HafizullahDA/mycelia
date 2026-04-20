@@ -11,6 +11,24 @@ import { applyRateLimit, getClientAddress } from '@/lib/server/rate-limit';
 
 export const maxDuration = 300;
 
+const toPublicGenerationError = (message: string): string => {
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes('mcq payload') ||
+    normalized.includes('question ') ||
+    normalized.includes('returned only') ||
+    normalized.includes('too few valid mcqs') ||
+    normalized.includes('qualitycheck') ||
+    normalized.includes('valid mcq output') ||
+    normalized.includes('valid quiz')
+  ) {
+    return 'MCQ generation returned an incomplete quiz. Please try again.';
+  }
+
+  return message;
+};
+
 export async function POST(request: Request) {
   const context = createRequestLogContext('/api/generate-mcqs', request);
   const rateLimit = applyRateLimit({
@@ -173,12 +191,13 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'MCQ generation failed.';
+    const publicMessage = toPublicGenerationError(message);
     logRequestError(context, 'request_failed', error, {
       status: 500,
       durationMs: getRequestDurationMs(context),
     });
     return NextResponse.json(
-      { error: message, requestId: context.requestId },
+      { error: publicMessage, requestId: context.requestId },
       {
         status: 500,
         headers: {
