@@ -95,6 +95,25 @@ const formatBytes = (value: number): string => {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+const getUserDisplayName = (user: User): string => {
+  const metadata = user.user_metadata as Record<string, unknown>;
+  const nameCandidates = [
+    metadata.full_name,
+    metadata.name,
+    metadata.display_name,
+  ];
+
+  const displayName = nameCandidates.find(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0,
+  );
+
+  if (displayName) {
+    return displayName.trim();
+  }
+
+  return 'Aspirant';
+};
+
 const mapSourceUploadRow = (row: SourceUploadRow): SavedSourceItem => {
   if (row.upload_type === 'text') {
     const textLength = row.raw_text?.length ?? 0;
@@ -675,6 +694,7 @@ export function DashboardUploadWorkspace() {
   const savedSourceCount = savedItems.length;
   const readyQuizCount = generationResult?.questionCount ?? 0;
   const isGeneratingQuiz = processingStep === 'building';
+  const displayName = getUserDisplayName(user);
 
   return (
     <main className="min-h-screen bg-[#0A0F1A] px-4 py-5 text-[#F9FAFB] sm:px-6 sm:py-8 lg:px-10 lg:py-10">
@@ -701,7 +721,7 @@ export function DashboardUploadWorkspace() {
                   <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#6B7280]">
                     Signed in
                   </p>
-                  <p className="mt-1 truncate text-sm text-[#F9FAFB]">{user.email ?? 'Active session'}</p>
+                  <p className="mt-1 truncate text-sm text-[#F9FAFB]">{displayName}</p>
                 </div>
                 <button
                   className="inline-flex h-10 items-center justify-center rounded-xl border border-white/10 bg-[#0A0F1A] px-4 text-sm font-medium text-[#F9FAFB] transition hover:border-[#C8A44A]/40 hover:text-[#C8A44A] disabled:cursor-not-allowed disabled:opacity-70"
