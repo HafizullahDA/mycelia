@@ -942,6 +942,44 @@ export function DashboardUploadWorkspace() {
             </section>
             ) : null}
 
+            <McqGenerationPanel
+              autoGenerateToken={autoGenerateToken}
+              generationSource={generationSource}
+              reviewSession={selectedPastSession}
+              questionCount={questionCount}
+              onError={setError}
+              onMoreQuestions={() => {
+                if (!generationSource) {
+                  setError(
+                    'The original material is not available for this session. Upload or paste the notes again to generate more MCQs.',
+                  );
+                  setSuccessMessage('');
+                  return;
+                }
+
+                setSelectedPastSession(null);
+                setGenerationResult(null);
+                setProcessingStep('building');
+                setAutoGenerateToken((current) => current + 1);
+                setError('');
+                setSuccessMessage('');
+              }}
+              onResultsSaved={() => {
+                void refreshPastQuizSessions();
+              }}
+              onSuccess={setSuccessMessage}
+              onGenerationStart={() => {
+                setProcessingStep('building');
+              }}
+              onGenerationComplete={(result) => {
+                setGenerationResult(result);
+                setProcessingStep('ready');
+              }}
+              onGenerationError={() => {
+                setProcessingStep('error');
+              }}
+            />
+
             {!isGeneratingQuiz && pastSessions.length > 0 ? (
               <section className="rounded-[24px] border border-white/10 bg-[#111827] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.35)] sm:p-6">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -1002,34 +1040,6 @@ export function DashboardUploadWorkspace() {
                 </div>
               </section>
             ) : null}
-
-            <McqGenerationPanel
-              autoGenerateToken={autoGenerateToken}
-              generationSource={generationSource}
-              reviewSession={selectedPastSession}
-              questionCount={questionCount}
-              onError={setError}
-              onMoreQuestions={() => {
-                setSelectedPastSession(null);
-                setGenerationResult(null);
-                setProcessingStep('idle');
-                setSuccessMessage('');
-              }}
-              onResultsSaved={() => {
-                void refreshPastQuizSessions();
-              }}
-              onSuccess={setSuccessMessage}
-              onGenerationStart={() => {
-                setProcessingStep('building');
-              }}
-              onGenerationComplete={(result) => {
-                setGenerationResult(result);
-                setProcessingStep('ready');
-              }}
-              onGenerationError={() => {
-                setProcessingStep('error');
-              }}
-            />
           </div>
         </div>
       </div>

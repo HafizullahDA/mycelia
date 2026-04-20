@@ -713,47 +713,6 @@ export function QuizSessionPanel({
         </span>
       </div>
 
-      {!submitted && feedbackOpen && !feedbackSaved ? (
-        <div className="mt-5 rounded-2xl border border-[#C8A44A]/20 bg-[#C8A44A]/[0.07] p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-[#F9FAFB]">Improve this quiz</p>
-              <p className="mt-1 text-sm leading-6 text-[#B8C2D6]">
-                Optional: tell us what you would like changed, added, or improved in this generated set.
-              </p>
-            </div>
-            <button
-              className="w-fit text-xs font-semibold uppercase tracking-[0.16em] text-[#9CA3AF] transition hover:text-[#F9FAFB]"
-              onClick={() => setFeedbackOpen(false)}
-              type="button"
-            >
-              Skip
-            </button>
-          </div>
-
-          <textarea
-            className="mt-3 min-h-[96px] w-full rounded-xl border border-white/10 bg-[#0A0F1A] px-3.5 py-3 text-sm leading-6 text-[#F9FAFB] outline-none transition placeholder:text-[#4B5563] focus:border-[#C8A44A]/50 focus:shadow-[0_0_0_3px_rgba(200,164,74,0.08)]"
-            onChange={(event) => handleFeedbackChange(event.target.value)}
-            placeholder="Example: Make polity questions more statement-based, reduce easy recall, add more elimination traps..."
-            value={feedbackText}
-          />
-
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-[#9CA3AF]">{feedbackWordCount}/{MAX_USER_FEEDBACK_WORDS} words</p>
-            <button
-              className="flex h-10 items-center justify-center rounded-lg bg-[#C8A44A] px-4 text-sm font-semibold text-[#0A0F1A] transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-[#8B6914]"
-              disabled={feedbackSaving || !feedbackText.trim()}
-              onClick={() => {
-                void handleFeedbackSubmit();
-              }}
-              type="button"
-            >
-              {feedbackSaving ? 'Sending...' : 'Send feedback'}
-            </button>
-          </div>
-        </div>
-      ) : null}
-
       {!submitted ? (
         <div className="mt-5 space-y-5">
           <div className="flex flex-wrap gap-2">
@@ -872,6 +831,47 @@ export function QuizSessionPanel({
               </button>
             )}
           </div>
+
+          {feedbackOpen && !feedbackSaved ? (
+            <div className="rounded-2xl border border-[#C8A44A]/20 bg-[#C8A44A]/[0.07] p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-[#F9FAFB]">Improve this quiz</p>
+                  <p className="mt-1 text-sm leading-6 text-[#B8C2D6]">
+                    Optional: tell us what you would like changed, added, or improved in this generated set.
+                  </p>
+                </div>
+                <button
+                  className="w-fit text-xs font-semibold uppercase tracking-[0.16em] text-[#9CA3AF] transition hover:text-[#F9FAFB]"
+                  onClick={() => setFeedbackOpen(false)}
+                  type="button"
+                >
+                  Skip
+                </button>
+              </div>
+
+              <textarea
+                className="mt-3 min-h-[96px] w-full rounded-xl border border-white/10 bg-[#0A0F1A] px-3.5 py-3 text-sm leading-6 text-[#F9FAFB] outline-none transition placeholder:text-[#4B5563] focus:border-[#C8A44A]/50 focus:shadow-[0_0_0_3px_rgba(200,164,74,0.08)]"
+                onChange={(event) => handleFeedbackChange(event.target.value)}
+                placeholder="Example: Make polity questions more statement-based, reduce easy recall, add more elimination traps..."
+                value={feedbackText}
+              />
+
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-[#9CA3AF]">{feedbackWordCount}/{MAX_USER_FEEDBACK_WORDS} words</p>
+                <button
+                  className="flex h-10 items-center justify-center rounded-lg bg-[#C8A44A] px-4 text-sm font-semibold text-[#0A0F1A] transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-[#8B6914]"
+                  disabled={feedbackSaving || !feedbackText.trim()}
+                  onClick={() => {
+                    void handleFeedbackSubmit();
+                  }}
+                  type="button"
+                >
+                  {feedbackSaving ? 'Sending...' : 'Send feedback'}
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : (
         <div className="mt-5 space-y-5">
