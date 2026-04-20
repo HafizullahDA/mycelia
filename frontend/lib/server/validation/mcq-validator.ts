@@ -315,8 +315,27 @@ export const validatePromptMcqPayload = (payload: unknown): PromptMcqPayload => 
     throw new Error('MCQ payload must contain a non-empty questions array.');
   }
 
+  const validQuestions: PromptMcq[] = [];
+  const validationErrors: string[] = [];
+
+  questions.forEach((question, index) => {
+    try {
+      validQuestions.push(validateSingleQuestion(question, index));
+    } catch (error) {
+      validationErrors.push(
+        error instanceof Error
+          ? error.message
+          : `Question ${index + 1} failed MCQ validation.`,
+      );
+    }
+  });
+
+  if (validQuestions.length === 0) {
+    throw new Error(validationErrors[0] ?? 'MCQ payload did not contain any valid questions.');
+  }
+
   return {
-    questions: questions.map((question, index) => validateSingleQuestion(question, index)),
+    questions: validQuestions,
     qualityCheck: validateQualityCheck(qualityCheck),
   };
 };
