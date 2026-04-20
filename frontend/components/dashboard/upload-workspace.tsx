@@ -6,7 +6,11 @@ import { useRouter } from 'next/navigation';
 import { BrandWordmark } from '@/components/brand/wordmark';
 import { EnvSetupNotice } from '@/components/system/env-setup-notice';
 import { McqGenerationPanel } from '@/components/quiz/mcq-generation-panel';
-import type { McqGenerationResult } from '@/lib/types/quiz';
+import type {
+  McqGenerationResult,
+  SavedQuizSessionDetail,
+  SavedQuizSessionSummary,
+} from '@/lib/types/quiz';
 import {
   getSupabaseBrowserClient,
   getSupabaseBrowserEnvErrorMessage,
@@ -171,8 +175,96 @@ export function DashboardUploadWorkspace() {
   const [savedItems, setSavedItems] = useState<SavedSourceItem[]>([]);
   const [generationSource, setGenerationSource] = useState<GenerationSource | null>(null);
   const [generationResult, setGenerationResult] = useState<McqGenerationResult | null>(null);
+  const [pastSessions, setPastSessions] = useState<SavedQuizSessionSummary[]>([]);
+  const [selectedPastSession, setSelectedPastSession] = useState<SavedQuizSessionDetail | null>(null);
+  const [loadingPastSessionId, setLoadingPastSessionId] = useState<string | null>(null);
   const [autoGenerateToken, setAutoGenerateToken] = useState(0);
   const hasSupabaseEnv = hasSupabaseBrowserEnv();
+
+  const loadPastQuizSessions = async (accessToken?: string) => {
+    if (!accessToken) {
+      setPastSessions([]);
+      return;
+    }
+
+    const response = await fetch('/api/quiz/sessions', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    const data = (await response.json()) as {
+      error?: string;
+      sessions?: SavedQuizSessionSummary[];
+    };
+
+    if (!response.ok || !data.sessions) {
+      setPastSessions([]);
+      return;
+    }
+
+    setPastSessions(data.sessions);
+  };
+
+  const refreshPastQuizSessions = async () => {
+    try {
+      const response = await getSupabaseBrowserClient().auth.getSession();
+      await loadPastQuizSessions(response.data.session?.access_token);
+    } catch {
+      setPastSessions([]);
+    }
+  };
+
+  const openPastQuizSession = async (sessionId: string) => {
+    if (loadingPastSessionId) {
+      return;
+    }
+
+    let accessToken = '';
+
+    try {
+      const response = await getSupabaseBrowserClient().auth.getSession();
+      accessToken = response.data.session?.access_token ?? '';
+    } catch {
+      setError(getSupabaseBrowserEnvErrorMessage());
+      return;
+    }
+
+    if (!accessToken) {
+      setError('Sign in again before opening past quiz sessions.');
+      return;
+    }
+
+    setLoadingPastSessionId(sessionId);
+    setError('');
+    setSuccessMessage('');
+
+    try {
+      const response = await fetch(`/api/quiz/sessions/${sessionId}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      const data = (await response.json()) as {
+        error?: string;
+        session?: SavedQuizSessionDetail;
+      };
+
+      if (!response.ok || !data.session) {
+        setError(data.error ?? 'Past quiz session could not be opened.');
+        return;
+      }
+
+      setGenerationSource(null);
+      setGenerationResult(null);
+      setSelectedPastSession(data.session);
+      setProcessingStep('ready');
+      setSuccessMessage('Past quiz session opened.');
+    } catch {
+      setError('Past quiz session request failed. Try again.');
+    } finally {
+      setLoadingPastSessionId(null);
+    }
+  };
 
   useEffect(() => {
     if (!hasSupabaseEnv) {
@@ -235,6 +327,7 @@ export function DashboardUploadWorkspace() {
       setUser(currentUser);
       setAuthChecking(false);
       await loadSavedItems(currentUser.id);
+      await loadPastQuizSessions(session?.access_token);
     };
 
     void loadUser();
@@ -339,6 +432,7 @@ export function DashboardUploadWorkspace() {
 
   const queueGenerationSource = (source: GenerationSource) => {
     setGenerationSource(source);
+    setSelectedPastSession(null);
     setSuccessMessage('Your notes are uploaded. myCELIA is preparing the quiz now.');
     setAutoGenerateToken((current) => current + 1);
   };
@@ -396,6 +490,7 @@ export function DashboardUploadWorkspace() {
     setSuccessMessage('');
     setGenerationSource(null);
     setGenerationResult(null);
+    setSelectedPastSession(null);
 
     const safeName = sanitizeFileName(selectedFile.name);
     const storagePath = `${user.id}/${Date.now()}-${safeName}`;
@@ -492,6 +587,7 @@ export function DashboardUploadWorkspace() {
     setSuccessMessage('');
     setGenerationSource(null);
     setGenerationResult(null);
+    setSelectedPastSession(null);
 
     const derivedTitle = title.trim() || textInput.trim().slice(0, 48) || 'Pasted notes';
     const normalizedText = textInput.trim();
@@ -826,11 +922,82 @@ export function DashboardUploadWorkspace() {
             </section>
             ) : null}
 
+            {!isGeneratingQuiz && pastSessions.length > 0 ? (
+              <section className="rounded-[24px] border border-white/10 bg-[#111827] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.35)] sm:p-6">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-[#F9FAFB]">Past quiz sessions</p>
+                    <p className="mt-1 text-sm leading-6 text-[#9CA3AF]">
+                      Reopen saved results so your preparation carries forward.
+                    </p>
+                  </div>
+                  <button
+                    className="w-fit rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#9CA3AF] transition hover:text-[#F9FAFB]"
+                    onClick={() => {
+                      void refreshPastQuizSessions();
+                    }}
+                    type="button"
+                  >
+                    Refresh
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  {pastSessions.slice(0, 5).map((session) => (
+                    <button
+                      key={session.id}
+                      className={`rounded-2xl border px-4 py-4 text-left transition ${
+                        selectedPastSession?.id === session.id
+                          ? 'border-[#C8A44A]/45 bg-[#C8A44A]/10'
+                          : 'border-white/8 bg-[#0A0F1A] hover:border-white/15 hover:bg-white/[0.03]'
+                      }`}
+                      disabled={loadingPastSessionId === session.id}
+                      onClick={() => {
+                        void openPastQuizSession(session.id);
+                      }}
+                      type="button"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-[#F9FAFB]">{session.title}</p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.14em] text-[#6B7280]">
+                            {new Intl.DateTimeFormat('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            }).format(new Date(session.createdAt))}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.14em]">
+                          <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-emerald-300">
+                            {session.correctCount}/{session.questionCount}
+                          </span>
+                          <span className="rounded-full bg-[#C8A44A]/10 px-2.5 py-1 text-[#E7C66D]">
+                            {session.scorePercent}% accuracy
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
             <McqGenerationPanel
               autoGenerateToken={autoGenerateToken}
               generationSource={generationSource}
+              reviewSession={selectedPastSession}
               questionCount={questionCount}
               onError={setError}
+              onMoreQuestions={() => {
+                setSelectedPastSession(null);
+                setGenerationResult(null);
+                setProcessingStep('idle');
+                setSuccessMessage('');
+              }}
+              onResultsSaved={() => {
+                void refreshPastQuizSessions();
+              }}
               onSuccess={setSuccessMessage}
               onGenerationStart={() => {
                 setProcessingStep('building');

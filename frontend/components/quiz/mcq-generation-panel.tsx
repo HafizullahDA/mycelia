@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BrandWordmark } from '@/components/brand/wordmark';
 import { QuizSessionPanel } from '@/components/quiz/quiz-session-panel';
-import type { McqGenerationResult } from '@/lib/types/quiz';
+import type { McqGenerationResult, SavedQuizSessionDetail } from '@/lib/types/quiz';
 
 type GenerationSource =
   | {
@@ -22,9 +22,12 @@ type GenerationSource =
 
 type McqGenerationPanelProps = {
   generationSource: GenerationSource | null;
+  reviewSession?: SavedQuizSessionDetail | null;
   questionCount: number;
   autoGenerateToken?: number;
   onError: (message: string) => void;
+  onMoreQuestions?: () => void;
+  onResultsSaved?: () => void;
   onSuccess: (message: string) => void;
   onGenerationStart?: () => void;
   onGenerationComplete?: (result: McqGenerationResult) => void;
@@ -56,9 +59,12 @@ const generationProgressStages = [
 
 export function McqGenerationPanel({
   generationSource,
+  reviewSession,
   questionCount,
   autoGenerateToken = 0,
   onError,
+  onMoreQuestions,
+  onResultsSaved,
   onSuccess,
   onGenerationStart,
   onGenerationComplete,
@@ -242,7 +248,10 @@ export function McqGenerationPanel({
   return (
     <QuizSessionPanel
       generationResult={result}
+      reviewSession={reviewSession}
       onError={onError}
+      onMoreQuestions={onMoreQuestions}
+      onResultsSaved={onResultsSaved}
       onSuccess={onSuccess}
       sourceUploadId={generationSource?.sourceUploadId}
     />
