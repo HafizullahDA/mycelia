@@ -5,6 +5,8 @@ export type McqOption = {
   text: string;
 };
 
+export type QuestionQualityLabel = 'good' | 'too_easy' | 'malformed' | 'off_style' | 'unsupported';
+
 export type GeneratedMcq = {
   question: string;
   options: [McqOption, McqOption, McqOption, McqOption];
@@ -42,6 +44,7 @@ export type McqGenerationResult = {
 };
 
 export type QuizResultItem = {
+  id?: string;
   questionIndex: number;
   question: string;
   options: [McqOption, McqOption, McqOption, McqOption];
@@ -51,6 +54,9 @@ export type QuizResultItem = {
   explanation: string;
   conceptTag?: string;
   sourceSupport?: string;
+  qualityLabel?: QuestionQualityLabel;
+  qualityNote?: string;
+  qualityMarkedAt?: string;
 };
 
 export type SaveQuizResultsInput = {
@@ -75,4 +81,24 @@ export type SubmitQuizAttemptInput = {
   quizToken: string;
   selectedAnswers: McqOptionId[];
   durationSeconds?: number;
+};
+
+export type SavedQuizSessionSummary = {
+  id: string;
+  title: string;
+  questionCount: number;
+  correctCount: number;
+  scorePercent: number;
+  durationSeconds: number | null;
+  createdAt: string;
+};
+
+export type SavedQuizSessionDetail = SavedQuizSessionSummary & {
+  results: QuizResultItem[];
+};
+
+export type MarkQuestionQualityInput = {
+  questionResultId: string;
+  label: QuestionQualityLabel;
+  note?: string;
 };
