@@ -25,6 +25,7 @@ type ExtractNotesResult = {
   extractedText: string;
   keyTopics: string[];
   method: 'normalized_text' | 'gemini_flash';
+  cacheStatus: 'hit' | 'miss' | 'not_applicable';
   characterCount: number;
 };
 
@@ -326,6 +327,7 @@ export const extractNotes = async (input: ExtractNotesInput): Promise<ExtractNot
       extractedText,
       keyTopics,
       method: 'normalized_text',
+      cacheStatus: 'not_applicable',
       characterCount: extractedText.length,
     };
   }
@@ -343,6 +345,7 @@ export const extractNotes = async (input: ExtractNotesInput): Promise<ExtractNot
         extractedText,
         keyTopics: deriveKeyTopicsFromText(extractedText),
         method: 'normalized_text',
+        cacheStatus: 'hit',
         characterCount: extractedText.length,
       };
     }
@@ -380,6 +383,7 @@ export const extractNotes = async (input: ExtractNotesInput): Promise<ExtractNot
         extractedText: localPdfText,
         keyTopics: deriveKeyTopicsFromText(localPdfText),
         method: 'normalized_text',
+        cacheStatus: 'miss',
         characterCount: localPdfText.length,
       };
     }
@@ -395,6 +399,7 @@ export const extractNotes = async (input: ExtractNotesInput): Promise<ExtractNot
     return {
       ...extracted,
       method: 'gemini_flash',
+      cacheStatus: 'miss',
       characterCount: extracted.extractedText.length,
     };
   }
@@ -416,6 +421,7 @@ export const extractNotes = async (input: ExtractNotesInput): Promise<ExtractNot
   return {
     ...extracted,
     method: 'gemini_flash',
+    cacheStatus: 'miss',
     characterCount: extracted.extractedText.length,
   };
 };

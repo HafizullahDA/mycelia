@@ -145,9 +145,9 @@ const ProcessingMyceliaState = () => (
       </span>
     </div>
     <BrandWordmark className="mt-5 items-center" size="sm" />
-    <p className="mt-5 text-base font-semibold text-[#F9FAFB]">Generating MCQs...</p>
+    <p className="mt-5 text-base font-semibold text-[#F9FAFB]">Preparing your source...</p>
     <p className="mt-2 max-w-md text-sm leading-6 text-[#9CA3AF]">
-      myCELIA is processing your notes and preparing your UPSC practice set.
+      myCELIA is saving the material and getting the quiz workspace ready.
     </p>
   </div>
 );
@@ -578,6 +578,7 @@ export function DashboardUploadWorkspace() {
 
   const savedSourceCount = savedItems.length;
   const readyQuizCount = generationResult?.questionCount ?? 0;
+  const isGeneratingQuiz = processingStep === 'building';
 
   return (
     <main className="min-h-screen bg-[#0A0F1A] px-4 py-5 text-[#F9FAFB] sm:px-6 sm:py-8 lg:px-10 lg:py-10">
@@ -653,6 +654,7 @@ export function DashboardUploadWorkspace() {
 
         <div className="mt-6 sm:mt-8 lg:mt-10">
           <div className="mx-auto max-w-4xl space-y-6">
+            {!isGeneratingQuiz ? (
             <section className="rounded-[24px] border border-white/10 bg-[#111827] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.35)] sm:p-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -806,7 +808,7 @@ export function DashboardUploadWorkspace() {
                   }}
                   type="button"
                 >
-                  {isProcessing ? 'Generating MCQs...' : 'Generate MCQs'}
+                  {isProcessing ? 'Preparing source...' : 'Generate MCQs'}
                 </button>
 
                 {error ? (
@@ -822,6 +824,7 @@ export function DashboardUploadWorkspace() {
                 ) : null}
               </div>
             </section>
+            ) : null}
 
             <McqGenerationPanel
               autoGenerateToken={autoGenerateToken}

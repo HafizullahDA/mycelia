@@ -3,7 +3,12 @@ import { extractNotes } from '@/lib/server/extract-notes';
 import { validatePromptMcqPayload } from '@/lib/server/validation/mcq-validator';
 import { fetchVertexAiGenerateContent } from '@/lib/server/vertex-ai';
 import { createQuizToken } from '@/lib/server/quiz-token';
-import type { GeneratedMcq, McqOption, McqGenerationResult } from '@/lib/types/quiz';
+import type {
+  GeneratedMcq,
+  McqGenerationDiagnostics,
+  McqGenerationResult,
+  McqOption,
+} from '@/lib/types/quiz';
 
 type GenerateMcqsInput =
   | {
@@ -39,6 +44,18 @@ const COMPRESSION_CHUNK_CHARS = 40_000;
 const MAX_COMPRESSED_CONTEXT_CHARS = 20_000;
 const MAX_TRACKED_TOPICS = 10;
 const COMPRESSION_CONCURRENCY = 3;
+
+type McqSourceContext = {
+  sourceText: string;
+  keyTopics: string[];
+  sourceCharacters: number;
+  contextCharacters: number;
+  compressionChunkCount: number;
+};
+
+const getElapsedMs = (startMs: number): number => Math.max(0, Date.now() - startMs);
+
+const getSafeModelLabel = (model: string): string => model.split('/').pop() || model;
 
 const normalizeQuestionCount = (value?: number): number => {
   if (!value || Number.isNaN(value)) {
@@ -274,13 +291,18 @@ const compressLargeSourceForMcqs = async (input: {
   title?: string;
   extractedText: string;
   keyTopics: string[];
-}): Promise<{ sourceText: string; keyTopics: string[] }> => {
+}): Promise<McqSourceContext> => {
   const flashModel = process.env.GEMINI_FLASH_MODEL;
 
   if (!flashModel) {
+    const sourceText = input.extractedText.slice(0, MAX_DIRECT_MCQ_SOURCE_CHARS);
+
     return {
-      sourceText: input.extractedText.slice(0, MAX_DIRECT_MCQ_SOURCE_CHARS),
+      sourceText,
       keyTopics: input.keyTopics,
+      sourceCharacters: input.extractedText.length,
+      contextCharacters: sourceText.length,
+      compressionChunkCount: 0,
     };
   }
 
@@ -290,6 +312,9 @@ const compressLargeSourceForMcqs = async (input: {
     return {
       sourceText: cleanedText,
       keyTopics: input.keyTopics,
+      sourceCharacters: cleanedText.length,
+      contextCharacters: cleanedText.length,
+      compressionChunkCount: 0,
     };
   }
 
@@ -361,9 +386,14 @@ const compressLargeSourceForMcqs = async (input: {
   const combinedSummary = summarySections.join('\n\n');
 
   if (!combinedSummary.trim()) {
+    const sourceText = cleanedText.slice(0, MAX_DIRECT_MCQ_SOURCE_CHARS);
+
     return {
-      sourceText: cleanedText.slice(0, MAX_DIRECT_MCQ_SOURCE_CHARS),
+      sourceText,
       keyTopics: dedupeTopics(collectedTopics).slice(0, MAX_TRACKED_TOPICS),
+      sourceCharacters: cleanedText.length,
+      contextCharacters: sourceText.length,
+      compressionChunkCount: chunks.length,
     };
   }
 
@@ -371,6 +401,9 @@ const compressLargeSourceForMcqs = async (input: {
     return {
       sourceText: combinedSummary,
       keyTopics: dedupeTopics(collectedTopics).slice(0, MAX_TRACKED_TOPICS),
+      sourceCharacters: cleanedText.length,
+      contextCharacters: combinedSummary.length,
+      compressionChunkCount: chunks.length,
     };
   }
 
@@ -415,16 +448,21 @@ const compressLargeSourceForMcqs = async (input: {
       }
     | null;
 
+  const sourceText =
+    mergedParsed?.summary?.trim()?.slice(0, MAX_COMPRESSED_CONTEXT_CHARS) ??
+    combinedSummary.slice(0, MAX_COMPRESSED_CONTEXT_CHARS);
+
   return {
-    sourceText:
-      mergedParsed?.summary?.trim()?.slice(0, MAX_COMPRESSED_CONTEXT_CHARS) ??
-      combinedSummary.slice(0, MAX_COMPRESSED_CONTEXT_CHARS),
+    sourceText,
     keyTopics: dedupeTopics([
       ...collectedTopics,
       ...(Array.isArray(mergedParsed?.keyTopics)
         ? mergedParsed.keyTopics.filter((topic): topic is string => typeof topic === 'string')
         : []),
     ]).slice(0, MAX_TRACKED_TOPICS),
+    sourceCharacters: cleanedText.length,
+    contextCharacters: sourceText.length,
+    compressionChunkCount: chunks.length,
   };
 };
 
@@ -454,6 +492,7 @@ const mapPromptQuestionToGeneratedMcq = (
 });
 
 export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerationResult> => {
+  const totalStartMs = Date.now();
   const proModel = process.env.GEMINI_PRO_MODEL;
   const flashModel = process.env.GEMINI_FLASH_MODEL;
 
@@ -466,11 +505,17 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
   let extractedText = '';
   let topics: string[] = [];
   let resolvedTitle = input.title?.trim();
+  let extractionMs = 0;
+  let extractionMethod: McqGenerationDiagnostics['extractionMethod'];
+  let extractionCacheStatus: McqGenerationDiagnostics['extractionCacheStatus'];
 
   if ('extractedText' in input) {
     extractedText = input.extractedText.trim();
     topics = (input.keyTopics ?? []).filter(Boolean).slice(0, 8);
+    extractionMethod = 'normalized_text';
+    extractionCacheStatus = 'not_applicable';
   } else {
+    const extractionStartMs = Date.now();
     const extraction = await extractNotes(
       input.source.inputType === 'text'
         ? {
@@ -491,6 +536,9 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
     extractedText = extraction.extractedText.trim();
     topics = extraction.keyTopics.slice(0, 8);
     resolvedTitle = extraction.title;
+    extractionMs = getElapsedMs(extractionStartMs);
+    extractionMethod = extraction.method;
+    extractionCacheStatus = extraction.cacheStatus;
   }
 
   if (!extractedText) {
@@ -498,87 +546,125 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
   }
 
   const questionCount = normalizeQuestionCount(input.questionCount);
+  const compressionStartMs = Date.now();
   const mcqSource = await compressLargeSourceForMcqs({
     title: resolvedTitle,
     extractedText,
     keyTopics: topics,
   });
+  const compressionMs = getElapsedMs(compressionStartMs);
+  const mcqGenerationStartMs = Date.now();
   let lastValidationError: Error | null = null;
   const generationModels = Array.from(
     new Set([flashModel, proModel].filter((model): model is string => Boolean(model))),
   );
   let bestParsedPayload: ReturnType<typeof validatePromptMcqPayload> | null = null;
+  let bestParsedPayloadModel = generationModels[0] ?? 'unknown';
+  let bestParsedPayloadAttempt = 0;
+  let generationAttemptCount = 0;
 
-  for (let attempt = 0; attempt < generationModels.length; attempt += 1) {
-    const model = generationModels[attempt];
-    const prompt = promptRegistry.mcq.upscGs1({
-      title: resolvedTitle,
-      questionCount,
-      keyTopics: mcqSource.keyTopics,
-      sourceText: mcqSource.sourceText,
-      validationFeedback: lastValidationError?.message,
-      prioritizeCorrectness: model === proModel || attempt === generationModels.length - 1,
-    });
+  const buildDiagnostics = (inputDiagnostics: {
+    modelUsed: string;
+    fallbackCount: number;
+    returnedPartialSet?: boolean;
+  }): McqGenerationDiagnostics => ({
+    sourceCharacters: mcqSource.sourceCharacters,
+    contextCharacters: mcqSource.contextCharacters,
+    compressionChunkCount: mcqSource.compressionChunkCount,
+    extractionMs,
+    compressionMs,
+    mcqGenerationMs: getElapsedMs(mcqGenerationStartMs),
+    totalMs: getElapsedMs(totalStartMs),
+    extractionMethod,
+    extractionCacheStatus,
+    modelUsed: getSafeModelLabel(inputDiagnostics.modelUsed),
+    fallbackCount: inputDiagnostics.fallbackCount,
+    returnedPartialSet: inputDiagnostics.returnedPartialSet,
+  });
 
-    const response = await fetchVertexAiGenerateContent(model, {
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: prompt }],
+  for (let modelIndex = 0; modelIndex < generationModels.length; modelIndex += 1) {
+    const model = generationModels[modelIndex];
+    const isFinalModel = modelIndex === generationModels.length - 1;
+    const retryCount = isFinalModel || generationModels.length === 1 ? 2 : 1;
+
+    for (let retryIndex = 0; retryIndex < retryCount; retryIndex += 1) {
+      const currentAttempt = generationAttemptCount;
+      generationAttemptCount += 1;
+      const prompt = promptRegistry.mcq.upscGs1({
+        title: resolvedTitle,
+        questionCount,
+        keyTopics: mcqSource.keyTopics,
+        sourceText: mcqSource.sourceText,
+        validationFeedback: lastValidationError?.message,
+        prioritizeCorrectness: model === proModel || isFinalModel || retryIndex > 0,
+      });
+
+      const response = await fetchVertexAiGenerateContent(model, {
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: prompt }],
+          },
+        ],
+        generationConfig: {
+          temperature: retryIndex > 0 ? 0.15 : 0.25,
+          maxOutputTokens: getMcqOutputTokenLimit(questionCount),
+          responseMimeType: 'application/json',
         },
-      ],
-      generationConfig: {
-        temperature: 0.25,
-        maxOutputTokens: getMcqOutputTokenLimit(questionCount),
-        responseMimeType: 'application/json',
-      },
-    });
+      });
 
-    const data = (await response.json()) as {
-      candidates?: Array<{
-        content?: {
-          parts?: Array<{
-            text?: string;
-          }>;
-        };
-      }>;
-    };
-
-    const candidateText =
-      data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('\n') ?? '';
-
-    try {
-      const parsed = validatePromptMcqPayload(parseJsonCandidate(candidateText));
-
-      if (!bestParsedPayload || parsed.questions.length > bestParsedPayload.questions.length) {
-        bestParsedPayload = parsed;
-      }
-
-      if (parsed.questions.length < questionCount) {
-        throw new Error(`The model returned only ${parsed.questions.length} valid questions.`);
-      }
-
-      const mcqs = parsed.questions.slice(0, questionCount).map(mapPromptQuestionToGeneratedMcq);
-
-      if (mcqs.length < MIN_QUESTION_COUNT) {
-        throw new Error('The model returned too few valid MCQs. Try again.');
-      }
-
-      const title = resolvedTitle || 'Generated quiz';
-
-      return {
-        title,
-        questionCount: mcqs.length,
-        mcqs,
-        quizToken: createQuizToken({
-          title,
-          mcqs,
-        }),
-        qualityCheck: parsed.qualityCheck,
+      const data = (await response.json()) as {
+        candidates?: Array<{
+          content?: {
+            parts?: Array<{
+              text?: string;
+            }>;
+          };
+        }>;
       };
-    } catch (error) {
-      lastValidationError =
-        error instanceof Error ? error : new Error('Vertex AI Pro did not return valid MCQ output.');
+
+      const candidateText =
+        data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('\n') ?? '';
+
+      try {
+        const parsed = validatePromptMcqPayload(parseJsonCandidate(candidateText));
+
+        if (!bestParsedPayload || parsed.questions.length > bestParsedPayload.questions.length) {
+          bestParsedPayload = parsed;
+          bestParsedPayloadModel = model;
+          bestParsedPayloadAttempt = currentAttempt;
+        }
+
+        if (parsed.questions.length < questionCount) {
+          throw new Error(`The model returned only ${parsed.questions.length} valid questions.`);
+        }
+
+        const mcqs = parsed.questions.slice(0, questionCount).map(mapPromptQuestionToGeneratedMcq);
+
+        if (mcqs.length < MIN_QUESTION_COUNT) {
+          throw new Error('The model returned too few valid MCQs. Try again.');
+        }
+
+        const title = resolvedTitle || 'Generated quiz';
+
+        return {
+          title,
+          questionCount: mcqs.length,
+          mcqs,
+          quizToken: createQuizToken({
+            title,
+            mcqs,
+          }),
+          diagnostics: buildDiagnostics({
+            modelUsed: model,
+            fallbackCount: currentAttempt,
+          }),
+          qualityCheck: parsed.qualityCheck,
+        };
+      } catch (error) {
+        lastValidationError =
+          error instanceof Error ? error : new Error('Vertex AI did not return valid MCQ output.');
+      }
     }
   }
 
@@ -595,6 +681,11 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
       quizToken: createQuizToken({
         title,
         mcqs,
+      }),
+      diagnostics: buildDiagnostics({
+        modelUsed: bestParsedPayloadModel,
+        fallbackCount: bestParsedPayloadAttempt,
+        returnedPartialSet: true,
       }),
       qualityCheck: {
         ...bestParsedPayload.qualityCheck,

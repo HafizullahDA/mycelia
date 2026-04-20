@@ -14,11 +14,27 @@ export type GeneratedMcq = {
   sourceSupport?: string;
 };
 
+export type McqGenerationDiagnostics = {
+  sourceCharacters: number;
+  contextCharacters: number;
+  compressionChunkCount: number;
+  extractionMs: number;
+  compressionMs: number;
+  mcqGenerationMs: number;
+  totalMs: number;
+  extractionMethod?: 'normalized_text' | 'gemini_flash';
+  extractionCacheStatus?: 'hit' | 'miss' | 'not_applicable';
+  modelUsed: string;
+  fallbackCount: number;
+  returnedPartialSet?: boolean;
+};
+
 export type McqGenerationResult = {
   title: string;
   questionCount: number;
   mcqs: GeneratedMcq[];
   quizToken: string;
+  diagnostics?: McqGenerationDiagnostics;
   qualityCheck?: {
     sourceAdequate: boolean;
     notes: string;

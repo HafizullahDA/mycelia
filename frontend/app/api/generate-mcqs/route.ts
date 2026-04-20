@@ -8,6 +8,7 @@ import {
   logRequestWarn,
 } from '@/lib/server/observability';
 import { applyRateLimit, getClientAddress } from '@/lib/server/rate-limit';
+import type { McqGenerationResult } from '@/lib/types/quiz';
 
 export const maxDuration = 300;
 
@@ -23,11 +24,29 @@ const toPublicGenerationError = (message: string): string => {
     normalized.includes('valid mcq output') ||
     normalized.includes('valid quiz')
   ) {
-    return 'MCQ generation returned an incomplete quiz. Please try again.';
+    return 'myCELIA could not create enough reliable MCQs from this source yet. Try 5 MCQs or use a more focused section of the notes.';
   }
 
   return message;
 };
+
+const getGenerationLogMetadata = (
+  result: McqGenerationResult,
+): Record<string, string | number | boolean | undefined> => ({
+  questionCount: result.questionCount,
+  sourceCharacters: result.diagnostics?.sourceCharacters,
+  contextCharacters: result.diagnostics?.contextCharacters,
+  compressionChunkCount: result.diagnostics?.compressionChunkCount,
+  extractionMs: result.diagnostics?.extractionMs,
+  compressionMs: result.diagnostics?.compressionMs,
+  mcqGenerationMs: result.diagnostics?.mcqGenerationMs,
+  pipelineTotalMs: result.diagnostics?.totalMs,
+  extractionMethod: result.diagnostics?.extractionMethod,
+  extractionCacheStatus: result.diagnostics?.extractionCacheStatus,
+  modelUsed: result.diagnostics?.modelUsed,
+  fallbackCount: result.diagnostics?.fallbackCount,
+  returnedPartialSet: result.diagnostics?.returnedPartialSet,
+});
 
 export async function POST(request: Request) {
   const context = createRequestLogContext('/api/generate-mcqs', request);
@@ -84,7 +103,7 @@ export async function POST(request: Request) {
       logRequestInfo(context, 'request_completed', {
         status: 200,
         durationMs: getRequestDurationMs(context),
-        questionCount: result.questionCount,
+        ...getGenerationLogMetadata(result),
       });
 
       return NextResponse.json(
@@ -120,7 +139,7 @@ export async function POST(request: Request) {
       logRequestInfo(context, 'request_completed', {
         status: 200,
         durationMs: getRequestDurationMs(context),
-        questionCount: result.questionCount,
+        ...getGenerationLogMetadata(result),
       });
 
       return NextResponse.json(
@@ -158,7 +177,7 @@ export async function POST(request: Request) {
       logRequestInfo(context, 'request_completed', {
         status: 200,
         durationMs: getRequestDurationMs(context),
-        questionCount: result.questionCount,
+        ...getGenerationLogMetadata(result),
       });
 
       return NextResponse.json(
