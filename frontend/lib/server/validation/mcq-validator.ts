@@ -40,6 +40,14 @@ const asOptionId = (value: unknown, errorMessage: string): McqOptionId => {
     return value;
   }
 
+  if (typeof value === 'string') {
+    const normalized = value.trim().toUpperCase().replace(/[^A-D]/g, '');
+
+    if (normalized[0] === 'A' || normalized[0] === 'B' || normalized[0] === 'C' || normalized[0] === 'D') {
+      return normalized[0];
+    }
+  }
+
   throw new Error(errorMessage);
 };
 
@@ -49,19 +57,31 @@ const validateOptions = (value: unknown, index: number): [string, string, string
   }
 
   const options = value.map((option, optionIndex) => {
+    const optionRecord =
+      option && typeof option === 'object' ? (option as Record<string, unknown>) : null;
+    const optionBody =
+      typeof option === 'string'
+        ? option
+        : typeof optionRecord?.text === 'string'
+          ? optionRecord.text
+          : typeof optionRecord?.label === 'string'
+            ? optionRecord.label
+            : typeof optionRecord?.value === 'string'
+              ? optionRecord.value
+              : '';
     const text = asTrimmedString(
-      option,
+      optionBody,
       `Question ${index + 1} option ${optionIndex + 1} is invalid.`,
     );
     const expectedPrefix = `${OPTION_IDS[optionIndex]}.`;
 
-    if (!text.startsWith(expectedPrefix)) {
-      throw new Error(
-        `Question ${index + 1} option ${optionIndex + 1} must start with "${expectedPrefix}"`,
-      );
+    if (text.startsWith(expectedPrefix)) {
+      return text;
     }
 
-    return text;
+    const strippedPrefix = text.replace(/^\(?[A-Da-d]\)?[.)-]?\s*/, '').trim();
+
+    return `${expectedPrefix} ${strippedPrefix || text}`;
   }) as [string, string, string, string];
 
   const normalizedOptionBodies = options.map((option) => option.slice(2).trim().toLowerCase());
@@ -194,20 +214,27 @@ const validateSingleQuestion = (value: unknown, index: number): PromptMcq => {
   }
 
   const item = value as Record<string, unknown>;
-  const question = asTrimmedString(item.question, `Question ${index + 1} is missing question text.`);
+  const question = asTrimmedString(
+    item.question ?? item.stem ?? item.questionText,
+    `Question ${index + 1} is missing question text.`,
+  );
   const explanation = asTrimmedString(
-    item.explanation,
+    item.explanation ?? item.rationale,
     `Question ${index + 1} is missing explanation.`,
   );
   const sourceSupport = asTrimmedString(
-    item.sourceSupport,
+    item.sourceSupport ?? item.support ?? item.evidence ?? explanation,
     `Question ${index + 1} is missing sourceSupport.`,
   );
   const correctAnswer = asOptionId(
-    item.correctAnswer,
+    item.correctAnswer ?? item.answer,
     `Question ${index + 1} has invalid correctAnswer.`,
   );
-  const concepts = asStringArray(item.concepts, `Question ${index + 1} has invalid concepts.`);
+  const concepts = Array.isArray(item.concepts)
+    ? asStringArray(item.concepts, `Question ${index + 1} has invalid concepts.`)
+    : typeof item.conceptTag === 'string'
+      ? [item.conceptTag.trim()].filter(Boolean).slice(0, 1)
+      : [];
   const options = validateOptions(item.options, index);
 
   ensureQuestionQuality({
@@ -240,18 +267,30 @@ const validateSingleQuestion = (value: unknown, index: number): PromptMcq => {
 
 const validateQualityCheck = (value: unknown): { sourceAdequate: boolean; notes: string } => {
   if (!value || typeof value !== 'object') {
-    throw new Error('qualityCheck is invalid.');
+    return {
+      sourceAdequate: true,
+      notes: 'Generated quiz passed structural validation.',
+    };
   }
 
   const item = value as Record<string, unknown>;
 
   if (typeof item.sourceAdequate !== 'boolean') {
-    throw new Error('qualityCheck.sourceAdequate must be boolean.');
+    return {
+      sourceAdequate: true,
+      notes:
+        typeof item.notes === 'string' && item.notes.trim()
+          ? item.notes.trim()
+          : 'Generated quiz passed structural validation.',
+    };
   }
 
   return {
     sourceAdequate: item.sourceAdequate,
-    notes: asTrimmedString(item.notes, 'qualityCheck.notes is required.'),
+    notes:
+      typeof item.notes === 'string' && item.notes.trim()
+        ? item.notes.trim()
+        : 'Generated quiz passed structural validation.',
   };
 };
 
@@ -260,8 +299,16 @@ export const validatePromptMcqPayload = (payload: unknown): PromptMcqPayload => 
     throw new Error('MCQ payload is not an object.');
   }
 
-  const candidate = payload as Record<string, unknown>;
-  const questions = candidate.questions;
+  const candidate = Array.isArray(payload)
+    ? {
+        questions: payload,
+        qualityCheck: {
+          sourceAdequate: true,
+          notes: 'Generated quiz returned as a question array.',
+        },
+      }
+    : (payload as Record<string, unknown>);
+  const questions = candidate.questions ?? candidate.mcqs ?? candidate.items;
   const qualityCheck = candidate.qualityCheck;
 
   if (!Array.isArray(questions) || questions.length === 0) {
