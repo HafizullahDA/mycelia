@@ -114,6 +114,10 @@ Reject patterns like:
 - in the uploaded notes
 - an analysis of the above would include
 - according to the passage, the main theme is
+- the table of contents lists
+- under which major section/category/theme
+- this topic falls under
+- which section discusses this topic
 
 These are not acceptable UPSC-style GS1 questions.
 
@@ -246,6 +250,7 @@ FINAL STYLE FILTER
 Reject a question if:
 - it tests only whether the reader noticed the topic of the passage
 - it can be answered just by identifying a heading, theme, or stated focus
+- it asks where a topic appears in a table of contents, digest, magazine section, category, or heading
 - it sounds like reading-comprehension recap rather than UPSC GS1 elimination
 - the distractors are too far from the correct concept
 - the stem format and option format do not match

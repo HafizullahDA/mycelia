@@ -1,6 +1,17 @@
 import type { PromptMcq, PromptMcqPayload, McqOptionId } from '@/lib/server/validation/mcq-types';
 
 const OPTION_IDS = ['A', 'B', 'C', 'D'] as const;
+const DISALLOWED_QUESTION_PATTERNS = [
+  /table of contents/i,
+  /major thematic area/i,
+  /major section/i,
+  /under which (major )?(section|category|heading|thematic area)/i,
+  /falls under which/i,
+  /discussed under which/i,
+  /mentioned .* falls under/i,
+  /provided table of contents/i,
+  /digest.*topic.*under/i,
+] as const;
 
 const asTrimmedString = (value: unknown, errorMessage: string): string => {
   if (typeof value !== 'string' || !value.trim()) {
@@ -88,6 +99,11 @@ const validateSingleQuestion = (value: unknown, index: number): PromptMcq => {
     item.question ?? item.stem ?? item.questionText,
     `Generated MCQ ${index + 1} is missing a question.`,
   );
+
+  if (DISALLOWED_QUESTION_PATTERNS.some((pattern) => pattern.test(question))) {
+    throw new Error(`Generated MCQ ${index + 1} asks about document structure instead of content.`);
+  }
+
   const explanation = asTrimmedString(
     item.explanation ?? item.rationale,
     `Generated MCQ ${index + 1} is missing an explanation.`,

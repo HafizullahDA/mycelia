@@ -1,3 +1,4 @@
+import { promptRegistry } from '@/lib/server/prompts';
 import { extractNotes } from '@/lib/server/extract-notes';
 import { validatePromptMcqPayload } from '@/lib/server/validation/mcq-validator';
 import { fetchVertexAiGenerateContent } from '@/lib/server/vertex-ai';
@@ -55,8 +56,6 @@ const MAX_QUESTION_COUNT = 15;
 const MAX_DIRECT_MCQ_SOURCE_CHARS = 22_000;
 const COMPRESSION_CHUNK_CHARS = 40_000;
 const MAX_COMPRESSED_CONTEXT_CHARS = 20_000;
-const MAX_PRIMARY_MCQ_CONTEXT_CHARS = 9_000;
-const MAX_FALLBACK_MCQ_CONTEXT_CHARS = 7_000;
 const MAX_TRACKED_TOPICS = 10;
 const COMPRESSION_CONCURRENCY = 3;
 const IMAGE_BATCH_EXTRACTION_CONCURRENCY = 2;
@@ -246,55 +245,6 @@ const getMcqOutputTokenLimit = (questionCount: number): number => {
   return 8_192;
 };
 
-const buildOriginalMcqPrompt = (input: {
-  title?: string;
-  questionCount: number;
-  keyTopics: string[];
-  sourceText: string;
-}): string =>
-  [
-    'You write premium UPSC Civil Services preliminary exam style MCQs.',
-    'Return valid JSON only.',
-    'Use this exact shape:',
-    '{"title":"string","mcqs":[{"question":"string","options":[{"id":"A","text":"string"},{"id":"B","text":"string"},{"id":"C","text":"string"},{"id":"D","text":"string"}],"correctAnswer":"A","explanation":"string","conceptTag":"string"}]}',
-    `Generate exactly ${input.questionCount} MCQs.`,
-    'The questions must feel like serious UPSC preparation material, not generic school trivia.',
-    'Prefer concept clarity, constitutional nuance, historical precision, governance framing, and close distractors when the material supports it.',
-    'Every question must have exactly 4 options and exactly 1 correct answer.',
-    'Each explanation should briefly justify the correct answer and, when useful, explain why the distractors are wrong.',
-    'Do not invent facts that are not grounded in the source notes.',
-    input.title ? `Source title: ${input.title}` : 'Source title: Uploaded notes',
-    input.keyTopics.length > 0
-      ? `Priority topics: ${input.keyTopics.join(', ')}`
-      : 'Priority topics: none provided',
-    'Source notes:',
-    input.sourceText,
-  ].join('\n');
-
-const buildFocusedFallbackMcqPrompt = (input: {
-  title?: string;
-  questionCount: number;
-  keyTopics: string[];
-  sourceText: string;
-}): string =>
-  [
-    'Create a usable UPSC Civil Services preliminary exam quiz from the notes below.',
-    'Return valid JSON only.',
-    'Use this exact shape:',
-    '{"title":"string","mcqs":[{"question":"string","options":[{"id":"A","text":"string"},{"id":"B","text":"string"},{"id":"C","text":"string"},{"id":"D","text":"string"}],"correctAnswer":"A","explanation":"string","conceptTag":"string"}]}',
-    `Generate exactly ${input.questionCount} MCQs.`,
-    'Use only clear facts, concepts, names, dates, provisions, events, or distinctions present in the notes.',
-    'Prefer direct but serious UPSC-style questions over complex statement formats.',
-    'Each question must have 4 options, exactly one correct answer, and a brief explanation.',
-    'Do not apologize. Do not say the source is insufficient. Create the best valid quiz possible from the available notes.',
-    input.title ? `Source title: ${input.title}` : 'Source title: Uploaded notes',
-    input.keyTopics.length > 0
-      ? `Priority topics: ${input.keyTopics.join(', ')}`
-      : 'Priority topics: none provided',
-    'Focused notes:',
-    input.sourceText,
-  ].join('\n');
-
 const buildChunkCompressionPrompt = (input: {
   title?: string;
   keyTopics: string[];
@@ -311,9 +261,11 @@ RULES
 1. Use only the source chunk below.
 2. Do not add outside knowledge.
 3. Remove noise such as repeated headers, institute branding, page markers, contact details, and duplicate boilerplate.
-4. Preserve important facts, dates, constitutional articles, committee names, judgments, schemes, places, institutions, numbers, and cause-effect links.
-5. Prefer concise bullet-like revision notes over prose.
-6. Keep the summary dense and useful for MCQ writing.
+4. Ignore table of contents, section indexes, page-number lists, magazine front matter, advertisements, and lines that only classify topics under broad headings.
+5. Preserve important facts, dates, constitutional articles, committee names, judgments, schemes, places, institutions, numbers, and cause-effect links.
+6. Prefer concise bullet-like revision notes over prose.
+7. Keep the summary dense and useful for MCQ writing.
+8. Do not summarize the table of contents as examinable material.
 
 Return valid JSON only in this shape:
 {
@@ -348,8 +300,10 @@ RULES
 1. Use only the material below.
 2. Do not add outside knowledge.
 3. Remove repetition.
-4. Preserve specificity: dates, articles, institutions, places, committees, numbers, and distinctions.
-5. Keep the final context compact but information-dense.
+4. Remove table of contents, page-number lists, section indexes, magazine front matter, and broad topic-category mappings.
+5. Preserve specificity: dates, articles, institutions, places, committees, numbers, and distinctions.
+6. Keep the final context compact but information-dense.
+7. Keep only material that can support real UPSC-style MCQs, not questions about where an item appears in a magazine.
 
 Return valid JSON only in this shape:
 {
@@ -667,7 +621,6 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
     extractedText,
     keyTopics: topics,
   });
-  const cleanedExtractedText = stripRepeatedBoilerplate(extractedText);
   const compressionMs = getElapsedMs(compressionStartMs);
   const mcqGenerationStartMs = Date.now();
   let lastValidationError: Error | null = null;
@@ -704,11 +657,13 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
     for (let retryIndex = 0; retryIndex < retryCount; retryIndex += 1) {
       const currentAttempt = generationAttemptCount;
       generationAttemptCount += 1;
-      const prompt = buildOriginalMcqPrompt({
+      const prompt = promptRegistry.mcq.upscGs1({
         title: resolvedTitle,
         questionCount,
         keyTopics: mcqSource.keyTopics,
-        sourceText: mcqSource.sourceText.slice(0, MAX_PRIMARY_MCQ_CONTEXT_CHARS),
+        sourceText: mcqSource.sourceText,
+        validationFeedback: lastValidationError?.message,
+        prioritizeCorrectness: model === proModel || retryIndex > 0,
       });
 
       try {
@@ -785,66 +740,7 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
     }
   }
 
-  if (!lastQuotaError && (!bestParsedPayload || bestParsedPayload.questions.length < MIN_QUESTION_COUNT)) {
-    const fallbackAttempt = generationAttemptCount;
-    generationAttemptCount += 1;
-    const fallbackPrompt = buildFocusedFallbackMcqPrompt({
-      title: resolvedTitle,
-      questionCount: MIN_QUESTION_COUNT,
-      keyTopics: mcqSource.keyTopics,
-      sourceText: cleanedExtractedText.slice(0, MAX_FALLBACK_MCQ_CONTEXT_CHARS),
-    });
-
-    try {
-      const fallbackResponse = await fetchVertexAiGenerateContent(mcqModel, {
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: fallbackPrompt }],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.25,
-          maxOutputTokens: getMcqOutputTokenLimit(MIN_QUESTION_COUNT),
-          responseMimeType: 'application/json',
-        },
-      });
-
-      const fallbackData = (await fallbackResponse.json()) as {
-        candidates?: Array<{
-          content?: {
-            parts?: Array<{
-              text?: string;
-            }>;
-          };
-        }>;
-      };
-
-      const fallbackCandidateText =
-        fallbackData.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('\n') ??
-        '';
-      const fallbackParsed = validatePromptMcqPayload(parseJsonCandidate(fallbackCandidateText));
-
-      if (
-        !bestParsedPayload ||
-        fallbackParsed.questions.length > bestParsedPayload.questions.length
-      ) {
-        bestParsedPayload = fallbackParsed;
-        bestParsedPayloadModel = mcqModel;
-        bestParsedPayloadAttempt = fallbackAttempt;
-      }
-    } catch (error) {
-      if (isVertexQuotaError(error)) {
-        lastQuotaError =
-          error instanceof Error ? error : new Error('Vertex AI quota is temporarily exhausted.');
-      } else {
-        lastValidationError =
-          error instanceof Error ? error : new Error('Vertex AI did not return valid MCQ output.');
-      }
-    }
-  }
-
-  if (bestParsedPayload && bestParsedPayload.questions.length > 0) {
+  if (bestParsedPayload && bestParsedPayload.questions.length >= MIN_QUESTION_COUNT) {
     const mcqs = bestParsedPayload.questions
       .slice(0, questionCount)
       .map(mapPromptQuestionToGeneratedMcq);
