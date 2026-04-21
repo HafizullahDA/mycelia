@@ -76,6 +76,12 @@ export const fetchVertexAiGenerateContent = async (
       );
     }
 
+    if (response.status === 429) {
+      throw new Error(
+        `Vertex AI quota is temporarily exhausted for this model. Try again later or switch MCQ generation to another configured model. Details: ${errorText}`,
+      );
+    }
+
     throw new Error(`Vertex AI request failed: ${errorText}`);
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {

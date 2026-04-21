@@ -16,6 +16,15 @@ const toPublicGenerationError = (message: string): string => {
   const normalized = message.toLowerCase();
 
   if (
+    normalized.includes('resource_exhausted') ||
+    normalized.includes('quota is temporarily exhausted') ||
+    normalized.includes('"code": 429') ||
+    normalized.includes('code: 429')
+  ) {
+    return 'Google AI quota is temporarily exhausted. Wait a few minutes and try again, or switch GEMINI_MCQ_MODEL to another available model.';
+  }
+
+  if (
     normalized.includes('mcq payload') ||
     normalized.includes('question ') ||
     normalized.includes('returned only') ||

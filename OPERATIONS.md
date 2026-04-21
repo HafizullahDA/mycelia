@@ -370,6 +370,26 @@ Fix path:
 4. Check generation diagnostics in server logs for `mcqGenerationMs`, `extractionMs`, and `compressionMs`.
 5. If `mcqGenerationMs` dominates, tune prompt/model settings before changing extraction.
 
+### Vertex AI Returns 429 RESOURCE_EXHAUSTED
+
+Meaning:
+
+- The selected Gemini model is temporarily rate-limited or quota-limited for the project.
+
+Expected behavior:
+
+- MCQ generation first uses the configured fast model.
+- If another configured generation model is available, the backend can fall back to it.
+- If all available models are exhausted, the UI should show a quota message instead of a schema/validation error.
+
+Fix:
+
+1. Wait a few minutes and retry.
+2. Reduce repeated test generations.
+3. Try 5 questions while testing.
+4. Set `GEMINI_MCQ_MODEL` to another available model if your project has quota there.
+5. Check Google Cloud quota/rate limits for the selected model and region.
+
 ### Quiz Results Do Not Save to Supabase
 
 Likely causes:

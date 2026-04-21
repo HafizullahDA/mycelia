@@ -72,6 +72,21 @@ const getElapsedMs = (startMs: number): number => Math.max(0, Date.now() - start
 
 const getSafeModelLabel = (model: string): string => model.split('/').pop() || model;
 
+const isVertexQuotaError = (error: unknown): boolean => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const normalized = error.message.toLowerCase();
+
+  return (
+    normalized.includes('quota is temporarily exhausted') ||
+    normalized.includes('resource_exhausted') ||
+    normalized.includes('"code": 429') ||
+    normalized.includes('code: 429')
+  );
+};
+
 const normalizeQuestionCount = (value?: number): number => {
   if (!value || Number.isNaN(value)) {
     return 5;
@@ -606,11 +621,14 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
   const compressionMs = getElapsedMs(compressionStartMs);
   const mcqGenerationStartMs = Date.now();
   let lastValidationError: Error | null = null;
-  const generationModels = mcqModel ? [mcqModel] : [];
+  const generationModels = Array.from(
+    new Set([mcqModel, proModel].filter((model): model is string => Boolean(model))),
+  );
   let bestParsedPayload: ReturnType<typeof validatePromptMcqPayload> | null = null;
   let bestParsedPayloadModel = generationModels[0] ?? 'unknown';
   let bestParsedPayloadAttempt = 0;
   let generationAttemptCount = 0;
+  let lastQuotaError: Error | null = null;
 
   const buildDiagnostics = (inputDiagnostics: {
     modelUsed: string;
@@ -647,34 +665,33 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
         prioritizeCorrectness: model === proModel || retryIndex > 0,
       });
 
-      const response = await fetchVertexAiGenerateContent(model, {
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: prompt }],
-          },
-        ],
-        generationConfig: {
-          temperature: retryIndex > 0 ? 0.15 : 0.25,
-          maxOutputTokens: getMcqOutputTokenLimit(questionCount),
-          responseMimeType: 'application/json',
-        },
-      });
-
-      const data = (await response.json()) as {
-        candidates?: Array<{
-          content?: {
-            parts?: Array<{
-              text?: string;
-            }>;
-          };
-        }>;
-      };
-
-      const candidateText =
-        data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('\n') ?? '';
-
       try {
+        const response = await fetchVertexAiGenerateContent(model, {
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: prompt }],
+            },
+          ],
+          generationConfig: {
+            temperature: retryIndex > 0 ? 0.15 : 0.25,
+            maxOutputTokens: getMcqOutputTokenLimit(questionCount),
+            responseMimeType: 'application/json',
+          },
+        });
+
+        const data = (await response.json()) as {
+          candidates?: Array<{
+            content?: {
+              parts?: Array<{
+                text?: string;
+              }>;
+            };
+          }>;
+        };
+
+        const candidateText =
+          data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('\n') ?? '';
         const parsed = validatePromptMcqPayload(parseJsonCandidate(candidateText));
 
         if (!bestParsedPayload || parsed.questions.length > bestParsedPayload.questions.length) {
@@ -710,6 +727,12 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
           qualityCheck: parsed.qualityCheck,
         };
       } catch (error) {
+        if (isVertexQuotaError(error)) {
+          lastQuotaError =
+            error instanceof Error ? error : new Error('Vertex AI quota is temporarily exhausted.');
+          break;
+        }
+
         lastValidationError =
           error instanceof Error ? error : new Error('Vertex AI did not return valid MCQ output.');
       }
@@ -746,7 +769,8 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
   }
 
   throw new Error(
-    lastValidationError?.message ??
+    lastQuotaError?.message ??
+      lastValidationError?.message ??
       'The model response could not be shaped into a valid quiz. Please try again.',
   );
 };
