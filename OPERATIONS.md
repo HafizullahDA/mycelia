@@ -93,11 +93,10 @@ GOOGLE_CLOUD_API_KEY=
 GOOGLE_CLOUD_PROJECT_ID=
 GEMINI_FLASH_MODEL=
 GEMINI_PRO_MODEL=
-GEMINI_MCQ_MODEL=
 ```
 
 These enable backend persistence, extraction, and MCQ generation.
-`GEMINI_MCQ_MODEL` is optional. If it is not set, MCQ generation uses `GEMINI_FLASH_MODEL` for lower latency. Set it to a Pro model only when quality matters more than speed.
+MCQ generation uses `GEMINI_PRO_MODEL` for higher-quality UPSC-style output. Keep `GEMINI_FLASH_MODEL` for OCR, extraction, and lightweight preprocessing.
 
 ### Secret Handling Rules
 
@@ -150,9 +149,7 @@ If email confirmation is enabled, signup may route differently than immediate-lo
 Configured models:
 
 - `GEMINI_FLASH_MODEL` for extraction/OCR and lightweight preprocessing
-- `GEMINI_MCQ_MODEL` for MCQ generation when explicitly configured
-- `GEMINI_FLASH_MODEL` as the default MCQ generation model for speed
-- `GEMINI_PRO_MODEL` as the higher-latency option for more nuanced generation
+- `GEMINI_PRO_MODEL` as the default MCQ generation model for more nuanced generation
 
 Operational rules:
 
@@ -355,18 +352,18 @@ If a 5-image batch takes several minutes:
 Likely cause:
 
 - MCQ generation is reaching the Vertex request timeout window rather than completing normally.
-- MCQ generation may be configured to use a slower Pro model.
+- MCQ generation uses the Pro model by default for quality, so broad sources and 10-15 question sets can take longer.
 
 Expected behavior:
 
-- Normal pasted notes, PDFs with parsed/cached text, and modest image batches should target roughly 60 seconds.
-- Very large sources or 15-question generations may still take longer.
+- Focused pasted notes, PDFs with parsed/cached text, and modest image batches should complete within the Vertex timeout window.
+- Very large sources or 15-question generations may take longer because quality is prioritized over raw speed.
 
 Fix path:
 
 1. Keep source sections focused instead of uploading very broad chapters.
 2. Prefer 5 or 10 questions while testing.
-3. Leave `GEMINI_MCQ_MODEL` unset or point it to the Flash model for speed.
+3. Keep `GEMINI_PRO_MODEL` pointed at a Pro-class Gemini model for MCQ quality.
 4. Check generation diagnostics in server logs for `mcqGenerationMs`, `extractionMs`, and `compressionMs`.
 5. If `mcqGenerationMs` dominates, tune prompt/model settings before changing extraction.
 
@@ -378,8 +375,7 @@ Meaning:
 
 Expected behavior:
 
-- MCQ generation first uses the configured fast model.
-- If another configured generation model is available, the backend can fall back to it.
+- MCQ generation uses `GEMINI_PRO_MODEL`.
 - If all available models are exhausted, the UI should show a quota message instead of a schema/validation error.
 
 Fix:
@@ -387,8 +383,7 @@ Fix:
 1. Wait a few minutes and retry.
 2. Reduce repeated test generations.
 3. Try 5 questions while testing.
-4. Set `GEMINI_MCQ_MODEL` to another available model if your project has quota there.
-5. Check Google Cloud quota/rate limits for the selected model and region.
+4. Check Google Cloud quota/rate limits for the selected model and region.
 
 ### Quiz Results Do Not Save to Supabase
 

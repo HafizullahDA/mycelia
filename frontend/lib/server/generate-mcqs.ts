@@ -53,9 +53,9 @@ type GenerateMcqsInput =
 
 const MIN_QUESTION_COUNT = 5;
 const MAX_QUESTION_COUNT = 15;
-const MAX_DIRECT_MCQ_SOURCE_CHARS = 12_000;
+const MAX_DIRECT_MCQ_SOURCE_CHARS = 22_000;
 const COMPRESSION_CHUNK_CHARS = 40_000;
-const MAX_COMPRESSED_CONTEXT_CHARS = 12_000;
+const MAX_COMPRESSED_CONTEXT_CHARS = 20_000;
 const MAX_TRACKED_TOPICS = 10;
 const COMPRESSION_CONCURRENCY = 3;
 const IMAGE_BATCH_EXTRACTION_CONCURRENCY = 2;
@@ -235,14 +235,14 @@ const runWithConcurrency = async <T, R>(
 
 const getMcqOutputTokenLimit = (questionCount: number): number => {
   if (questionCount <= 5) {
-    return 3_072;
+    return 4_096;
   }
 
   if (questionCount <= 10) {
-    return 5_120;
+    return 6_144;
   }
 
-  return 7_168;
+  return 8_192;
 };
 
 const buildChunkCompressionPrompt = (input: {
@@ -524,12 +524,11 @@ const mapPromptQuestionToGeneratedMcq = (
 export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerationResult> => {
   const totalStartMs = Date.now();
   const proModel = process.env.GEMINI_PRO_MODEL;
-  const flashModel = process.env.GEMINI_FLASH_MODEL;
-  const mcqModel = process.env.GEMINI_MCQ_MODEL || flashModel || proModel;
+  const mcqModel = proModel;
 
-  if (!mcqModel && !proModel && !flashModel) {
+  if (!mcqModel) {
     throw new Error(
-      'Missing Vertex AI configuration. Add GEMINI_FLASH_MODEL or GEMINI_PRO_MODEL to the frontend environment.',
+      'Missing Vertex AI configuration. Add GEMINI_PRO_MODEL to the frontend environment for MCQ generation.',
     );
   }
 

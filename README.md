@@ -28,9 +28,7 @@ Recommended order for new product work:
 
 ## Core AI split
 - `gemini-2.5-flash`: OCR, extraction, and lightweight preprocessing
-- `GEMINI_MCQ_MODEL` when explicitly set: MCQ generation model override
-- default MCQ generation: `GEMINI_FLASH_MODEL` for lower latency
-- `gemini-2.5-pro`: optional higher-latency model for nuanced MCQ generation and reasoning
+- `gemini-2.5-pro`: default MCQ generation model for nuanced UPSC-style questions
 
 ## Cost constraint
 myCELIA is being built with **Google Cloud free credits as the primary AI budget constraint**.
@@ -79,7 +77,6 @@ Vars needed for the full Phase 1 loop:
 - `GOOGLE_CLOUD_PROJECT_ID`
 - `GEMINI_FLASH_MODEL`
 - `GEMINI_PRO_MODEL`
-- `GEMINI_MCQ_MODEL` optionally overrides the MCQ generation model
 
 ## Supabase setup order
 Run these SQL files in Supabase before testing the full Phase 1 loop:

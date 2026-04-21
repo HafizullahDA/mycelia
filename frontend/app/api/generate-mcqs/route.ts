@@ -21,7 +21,7 @@ const toPublicGenerationError = (message: string): string => {
     normalized.includes('"code": 429') ||
     normalized.includes('code: 429')
   ) {
-    return 'Google AI quota is temporarily exhausted. Wait a few minutes and try again, or switch GEMINI_MCQ_MODEL to another available model.';
+    return 'Google AI quota is temporarily exhausted. Wait a few minutes and try again, or check quota for the configured Gemini Pro model.';
   }
 
   if (

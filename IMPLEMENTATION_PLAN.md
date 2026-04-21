@@ -119,7 +119,6 @@ Ensure the app can run locally and has the required environment and database set
    - `GOOGLE_CLOUD_PROJECT_ID`
    - `GEMINI_FLASH_MODEL`
    - `GEMINI_PRO_MODEL`
-   - `GEMINI_MCQ_MODEL` if overriding the default fast MCQ model
 6. Run Supabase SQL setup in order:
    - `supabase/sql/001_phase1_source_uploads.sql`
    - `supabase/sql/002_phase1_quiz_results.sql`
