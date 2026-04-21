@@ -1,19 +1,6 @@
 import type { PromptMcq, PromptMcqPayload, McqOptionId } from '@/lib/server/validation/mcq-types';
 
 const OPTION_IDS = ['A', 'B', 'C', 'D'] as const;
-const DISALLOWED_METADATA_PHRASES = [
-  'the source states',
-  'the source text states',
-  'the source text mentions',
-  'the provided text states',
-  'the provided text mentions',
-  'according to the source',
-  'according to the passage',
-  'the passage says',
-  'the text says',
-  'based on the source',
-  'based on the passage',
-] as const;
 
 const asTrimmedString = (value: unknown, errorMessage: string): string => {
   if (typeof value !== 'string' || !value.trim()) {
@@ -23,9 +10,9 @@ const asTrimmedString = (value: unknown, errorMessage: string): string => {
   return value.trim();
 };
 
-const asStringArray = (value: unknown, errorMessage: string): string[] => {
+const asOptionalStringArray = (value: unknown): string[] => {
   if (!Array.isArray(value)) {
-    throw new Error(errorMessage);
+    return [];
   }
 
   return value
@@ -43,7 +30,12 @@ const asOptionId = (value: unknown, errorMessage: string): McqOptionId => {
   if (typeof value === 'string') {
     const normalized = value.trim().toUpperCase().replace(/[^A-D]/g, '');
 
-    if (normalized[0] === 'A' || normalized[0] === 'B' || normalized[0] === 'C' || normalized[0] === 'D') {
+    if (
+      normalized[0] === 'A' ||
+      normalized[0] === 'B' ||
+      normalized[0] === 'C' ||
+      normalized[0] === 'D'
+    ) {
       return normalized[0];
     }
   }
@@ -51,216 +43,77 @@ const asOptionId = (value: unknown, errorMessage: string): McqOptionId => {
   throw new Error(errorMessage);
 };
 
+const normalizeOptionText = (option: unknown, optionIndex: number): string => {
+  const optionRecord =
+    option && typeof option === 'object' ? (option as Record<string, unknown>) : null;
+  const optionBody =
+    typeof option === 'string'
+      ? option
+      : typeof optionRecord?.text === 'string'
+        ? optionRecord.text
+        : typeof optionRecord?.label === 'string'
+          ? optionRecord.label
+          : typeof optionRecord?.value === 'string'
+            ? optionRecord.value
+            : '';
+  const text = asTrimmedString(optionBody, `Option ${optionIndex + 1} is invalid.`);
+  const expectedPrefix = `${OPTION_IDS[optionIndex]}.`;
+
+  if (text.startsWith(expectedPrefix)) {
+    return text;
+  }
+
+  const strippedPrefix = text.replace(/^\(?[A-Da-d]\)?[.)-]?\s*/, '').trim();
+
+  return `${expectedPrefix} ${strippedPrefix || text}`;
+};
+
 const validateOptions = (value: unknown, index: number): [string, string, string, string] => {
   if (!Array.isArray(value) || value.length !== 4) {
-    throw new Error(`Question ${index + 1} must contain exactly 4 options.`);
+    throw new Error(`Generated MCQ ${index + 1} must include exactly 4 options.`);
   }
 
-  const options = value.map((option, optionIndex) => {
-    const optionRecord =
-      option && typeof option === 'object' ? (option as Record<string, unknown>) : null;
-    const optionBody =
-      typeof option === 'string'
-        ? option
-        : typeof optionRecord?.text === 'string'
-          ? optionRecord.text
-          : typeof optionRecord?.label === 'string'
-            ? optionRecord.label
-            : typeof optionRecord?.value === 'string'
-              ? optionRecord.value
-              : '';
-    const text = asTrimmedString(
-      optionBody,
-      `Question ${index + 1} option ${optionIndex + 1} is invalid.`,
-    );
-    const expectedPrefix = `${OPTION_IDS[optionIndex]}.`;
-
-    if (text.startsWith(expectedPrefix)) {
-      return text;
-    }
-
-    const strippedPrefix = text.replace(/^\(?[A-Da-d]\)?[.)-]?\s*/, '').trim();
-
-    return `${expectedPrefix} ${strippedPrefix || text}`;
-  }) as [string, string, string, string];
-
-  const normalizedOptionBodies = options.map((option) => option.slice(2).trim().toLowerCase());
-
-  if (new Set(normalizedOptionBodies).size !== 4) {
-    throw new Error(`Question ${index + 1} contains duplicate or near-duplicate options.`);
-  }
-
-  return options;
-};
-
-const ensureQuestionQuality = ({
-  question,
-  options,
-  explanation,
-  sourceSupport,
-  index,
-}: {
-  question: string;
-  options: [string, string, string, string];
-  explanation: string;
-  sourceSupport: string;
-  index: number;
-}) => {
-  if (question.length < 20) {
-    throw new Error(`Question ${index + 1} is too short to be meaningful.`);
-  }
-
-  if (explanation.length < 20) {
-    throw new Error(`Question ${index + 1} explanation is too weak.`);
-  }
-
-  if (sourceSupport.length < 12) {
-    throw new Error(`Question ${index + 1} sourceSupport is too weak.`);
-  }
-
-  for (const body of options.map((option) => option.slice(2).trim())) {
-    if (body.length < 3) {
-      throw new Error(`Question ${index + 1} has an unusably short option.`);
-    }
-  }
-};
-
-const ensureProfessionalFeedbackLanguage = ({
-  explanation,
-  sourceSupport,
-  index,
-}: {
-  explanation: string;
-  sourceSupport: string;
-  index: number;
-}) => {
-  const normalizedExplanation = explanation.toLowerCase();
-  const normalizedSourceSupport = sourceSupport.toLowerCase();
-
-  for (const phrase of DISALLOWED_METADATA_PHRASES) {
-    if (normalizedExplanation.includes(phrase)) {
-      throw new Error(
-        `Question ${index + 1} explanation uses prototype-style wording ("${phrase}").`,
-      );
-    }
-
-    if (normalizedSourceSupport.includes(phrase)) {
-      throw new Error(
-        `Question ${index + 1} sourceSupport uses prototype-style wording ("${phrase}").`,
-      );
-    }
-  }
-};
-
-const ensureStemOptionConsistency = ({
-  question,
-  options,
-  index,
-}: {
-  question: string;
-  options: [string, string, string, string];
-  index: number;
-}) => {
-  const normalizedQuestion = question.trim().toLowerCase();
-  const optionBodies = options.map((option) => option.slice(2).trim());
-  const normalizedOptionBodies = optionBodies.map((option) => option.toLowerCase());
-
-  const mentionsConsiderStatements = normalizedQuestion.includes('consider the following statements');
-  const asksHowMany =
-    normalizedQuestion.includes('how many of the above statements are correct') ||
-    normalizedQuestion.includes('how many of the following statements') ||
-    normalizedQuestion.includes('how many pairs given above are correctly matched') ||
-    normalizedQuestion.includes('how many of the above pairs are correctly matched');
-  const asksWhichAbove =
-    normalizedQuestion.includes('which of the statements given above') ||
-    normalizedQuestion.includes('which of the above statements') ||
-    normalizedQuestion.includes('which one of the above statements') ||
-    normalizedQuestion.includes('select the correct answer using the code given below') ||
-    normalizedQuestion.includes('select the correct answer using the code given below:') ||
-    normalizedQuestion.includes('select the correct answer using the code given below.');
-
-  const hasCountStyleOptions = normalizedOptionBodies.every((option) =>
-    /^(only|all|none|both|neither|\d)/.test(option),
-  );
-
-  const hasStandaloneStatementOptions = normalizedOptionBodies.every((option) => {
-    const startsLikeCount = /^(only|all|none|both|neither|\d)/.test(option);
-
-    return !startsLikeCount;
-  });
-
-  if (mentionsConsiderStatements && !asksHowMany && !asksWhichAbove) {
-    throw new Error(
-      `Question ${index + 1} uses a "Consider the following statements" stem without asking which or how many statements are correct.`,
-    );
-  }
-
-  if (asksHowMany && !hasCountStyleOptions) {
-    throw new Error(
-      `Question ${index + 1} asks "how many" but does not use count-style answer options.`,
-    );
-  }
-
-  if (mentionsConsiderStatements && hasStandaloneStatementOptions && !asksWhichAbove) {
-    throw new Error(
-      `Question ${index + 1} uses statement-style options without a compatible UPSC-style instruction.`,
-    );
-  }
+  return value.map((option, optionIndex) =>
+    normalizeOptionText(option, optionIndex),
+  ) as [string, string, string, string];
 };
 
 const validateSingleQuestion = (value: unknown, index: number): PromptMcq => {
   if (!value || typeof value !== 'object') {
-    throw new Error(`Question ${index + 1} is not a valid object.`);
+    throw new Error(`Generated MCQ ${index + 1} is not a valid object.`);
   }
 
   const item = value as Record<string, unknown>;
   const question = asTrimmedString(
     item.question ?? item.stem ?? item.questionText,
-    `Question ${index + 1} is missing question text.`,
+    `Generated MCQ ${index + 1} is missing a question.`,
   );
   const explanation = asTrimmedString(
     item.explanation ?? item.rationale,
-    `Question ${index + 1} is missing explanation.`,
-  );
-  const sourceSupport = asTrimmedString(
-    item.sourceSupport ?? item.support ?? item.evidence ?? explanation,
-    `Question ${index + 1} is missing sourceSupport.`,
+    `Generated MCQ ${index + 1} is missing an explanation.`,
   );
   const correctAnswer = asOptionId(
     item.correctAnswer ?? item.answer,
-    `Question ${index + 1} has invalid correctAnswer.`,
+    `Generated MCQ ${index + 1} has an invalid correct answer.`,
   );
-  const concepts = Array.isArray(item.concepts)
-    ? asStringArray(item.concepts, `Question ${index + 1} has invalid concepts.`)
-    : typeof item.conceptTag === 'string'
-      ? [item.conceptTag.trim()].filter(Boolean).slice(0, 1)
-      : [];
   const options = validateOptions(item.options, index);
-
-  ensureQuestionQuality({
-    question,
-    options,
-    explanation,
-    sourceSupport,
-    index,
-  });
-  ensureProfessionalFeedbackLanguage({
-    explanation,
-    sourceSupport,
-    index,
-  });
-  ensureStemOptionConsistency({
-    question,
-    options,
-    index,
-  });
+  const conceptTag = typeof item.conceptTag === 'string' ? item.conceptTag.trim() : '';
+  const concepts = asOptionalStringArray(item.concepts);
+  const sourceSupport =
+    typeof item.sourceSupport === 'string' && item.sourceSupport.trim()
+      ? item.sourceSupport.trim()
+      : typeof item.support === 'string' && item.support.trim()
+        ? item.support.trim()
+        : typeof item.evidence === 'string' && item.evidence.trim()
+          ? item.evidence.trim()
+          : explanation;
 
   return {
     question,
     options,
     correctAnswer,
     explanation,
-    concepts,
+    concepts: concepts.length > 0 ? concepts : [conceptTag].filter(Boolean),
     sourceSupport,
   };
 };
@@ -275,18 +128,9 @@ const validateQualityCheck = (value: unknown): { sourceAdequate: boolean; notes:
 
   const item = value as Record<string, unknown>;
 
-  if (typeof item.sourceAdequate !== 'boolean') {
-    return {
-      sourceAdequate: true,
-      notes:
-        typeof item.notes === 'string' && item.notes.trim()
-          ? item.notes.trim()
-          : 'Generated quiz passed structural validation.',
-    };
-  }
-
   return {
-    sourceAdequate: item.sourceAdequate,
+    sourceAdequate:
+      typeof item.sourceAdequate === 'boolean' ? item.sourceAdequate : true,
     notes:
       typeof item.notes === 'string' && item.notes.trim()
         ? item.notes.trim()
@@ -315,27 +159,8 @@ export const validatePromptMcqPayload = (payload: unknown): PromptMcqPayload => 
     throw new Error('MCQ payload must contain a non-empty questions array.');
   }
 
-  const validQuestions: PromptMcq[] = [];
-  const validationErrors: string[] = [];
-
-  questions.forEach((question, index) => {
-    try {
-      validQuestions.push(validateSingleQuestion(question, index));
-    } catch (error) {
-      validationErrors.push(
-        error instanceof Error
-          ? error.message
-          : `Question ${index + 1} failed MCQ validation.`,
-      );
-    }
-  });
-
-  if (validQuestions.length === 0) {
-    throw new Error(validationErrors[0] ?? 'MCQ payload did not contain any valid questions.');
-  }
-
   return {
-    questions: validQuestions,
+    questions: questions.map((question, index) => validateSingleQuestion(question, index)),
     qualityCheck: validateQualityCheck(qualityCheck),
   };
 };
