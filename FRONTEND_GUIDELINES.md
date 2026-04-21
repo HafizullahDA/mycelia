@@ -190,12 +190,15 @@ Use:
 - clear labels
 - helpful placeholders
 - visible focus states using gold
+- visible confirmation for selected upload files
 
 Validation rules:
 
 - Validate before expensive backend work.
 - Show short, direct errors near the relevant workflow.
 - Keep errors actionable.
+- Show selected image batches as a list before generation.
+- Let users clear the selected file list before upload.
 
 ### Segmented Controls
 
@@ -209,6 +212,18 @@ Rules:
 - Active state should be visually obvious.
 - Switching modes should clear unrelated success/error messages.
 - Do not create extra pages for upload versus paste.
+
+### File Uploads
+
+Rules:
+
+- Support one PDF at a time.
+- Support up to 10 images at once.
+- Do not allow mixed PDF and image selections.
+- Show selected files before upload with file names and sizes.
+- Make the file count obvious, for example `3 images selected`.
+- Provide a `Clear` action before generation.
+- Keep the upload copy explicit: `Drop one PDF or up to 10 images here`.
 
 ### Question Count Controls
 

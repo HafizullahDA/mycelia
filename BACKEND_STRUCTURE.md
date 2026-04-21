@@ -245,11 +245,12 @@ Active quiz
 
 ```text
 Dashboard file input
-  --> Supabase Storage raw-notes upload
-  --> source_uploads metadata insert
+  --> one PDF or up to 10 images selected
+  --> Supabase Storage raw-notes upload for each file
+  --> source_uploads metadata insert for each file
   --> POST /api/generate-mcqs
   --> generate-mcqs server helper
-  --> extract-notes server helper if needed
+  --> extract-notes server helper for one source or each image in the batch
   --> Gemini Flash for extraction/OCR when needed
   --> Gemini Pro for MCQ generation
   --> MCQ validation
@@ -260,7 +261,7 @@ Dashboard file input
 Data written:
 
 - `raw-notes` storage object
-- `source_uploads` row
+- one `source_uploads` row per uploaded file
 - extracted source fields when extraction completes
 
 Data returned:
@@ -393,6 +394,7 @@ Data read:
 Owns:
 - Generation request validation.
 - Source input normalization.
+- Single-file and image-batch generation payloads.
 - Calling MCQ generation server logic.
 - Returning generated quiz data.
 

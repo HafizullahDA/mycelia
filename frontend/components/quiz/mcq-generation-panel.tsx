@@ -18,6 +18,17 @@ type GenerationSource =
       inputType: 'storage';
       storagePath: string;
       mimeType: string;
+    }
+  | {
+      sourceUploadId?: string;
+      title: string;
+      inputType: 'storage_batch';
+      storageItems: Array<{
+        sourceUploadId?: string;
+        storagePath: string;
+        mimeType: string;
+        title: string;
+      }>;
     };
 
 type McqGenerationPanelProps = {
@@ -103,10 +114,14 @@ export function McqGenerationPanel({
             ? {
                 rawText: generationSource.rawText,
               }
-            : {
+            : generationSource.inputType === 'storage'
+              ? {
                 storagePath: generationSource.storagePath,
                 mimeType: generationSource.mimeType,
-              }),
+                }
+              : {
+                  storageItems: generationSource.storageItems,
+                }),
           questionCount,
         }),
       });

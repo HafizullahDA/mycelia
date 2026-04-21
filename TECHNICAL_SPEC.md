@@ -60,6 +60,7 @@ Phase 1 includes:
 - authentication
 - dashboard workspace
 - PDF/image source upload
+- image batch upload up to 10 images
 - pasted text source input
 - source metadata storage
 - raw file storage
@@ -132,6 +133,7 @@ Dashboard is the only Phase 1 learner workspace. Source input, MCQ generation, q
 - Loads saved sources and past sessions.
 - Handles file/text source input.
 - Uploads files to Supabase Storage.
+- Shows selected file confirmation, including image batches.
 - Saves source metadata.
 - Queues generation source.
 - Coordinates generation, active quiz, past session review, and success/error messages.
@@ -242,10 +244,16 @@ Input:
 {
   title: string;
   sourceUploadId?: string;
-  inputType: "text" | "storage";
+  inputType: "text" | "storage" | "storage_batch";
   rawText?: string;
   storagePath?: string;
   mimeType?: string;
+  storageItems?: Array<{
+    sourceUploadId?: string;
+    storagePath: string;
+    mimeType: string;
+    title: string;
+  }>;
   questionCount: 5 | 10 | 15;
 }
 ```
@@ -253,8 +261,10 @@ Input:
 Responsibilities:
 - Validate question count.
 - Validate source input.
+- Validate that image batches contain 1 to 10 items.
 - Use extracted source text when available.
 - Extract storage-backed files when needed.
+- Combine extracted text from image batches into one MCQ source.
 - Call Gemini Pro generation.
 - Validate generated MCQs.
 - Return quiz token and structured MCQs.
@@ -430,6 +440,7 @@ Rules:
 
 - All durable learner records must be scoped to `user_id`.
 - File records store `storage_path`; pasted text records store `raw_text`.
+- Multi-image uploads store one `source_uploads` row and one storage object per image.
 - Saved quiz sessions own many question results.
 - Question results may carry concept tags, source support, and quality labels.
 - Future tables such as `student_knowledge` and `wiki_files` are planning artifacts until migrations and active flows exist.

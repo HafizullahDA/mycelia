@@ -35,6 +35,20 @@ type GenerateMcqsInput =
         storagePath: string;
         mimeType: string;
       };
+    }
+  | {
+      title?: string;
+      questionCount?: number;
+      source: {
+        inputType: 'storage_batch';
+        sourceUploadId?: string;
+        storageItems: Array<{
+          sourceUploadId?: string;
+          storagePath: string;
+          mimeType: string;
+          title: string;
+        }>;
+      };
     };
 
 const MIN_QUESTION_COUNT = 5;
@@ -516,29 +530,66 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
     extractionCacheStatus = 'not_applicable';
   } else {
     const extractionStartMs = Date.now();
-    const extraction = await extractNotes(
-      input.source.inputType === 'text'
-        ? {
-            inputType: 'text',
-            rawText: input.source.rawText,
-            sourceUploadId: input.source.sourceUploadId,
-            title: input.title,
-          }
-        : {
-            inputType: 'storage',
-            sourceUploadId: input.source.sourceUploadId,
-            storagePath: input.source.storagePath,
-            mimeType: input.source.mimeType,
-            title: input.title,
-          },
-    );
+    if (input.source.inputType === 'storage_batch') {
+      const extractions = [];
 
-    extractedText = extraction.extractedText.trim();
-    topics = extraction.keyTopics.slice(0, 8);
-    resolvedTitle = extraction.title;
-    extractionMs = getElapsedMs(extractionStartMs);
-    extractionMethod = extraction.method;
-    extractionCacheStatus = extraction.cacheStatus;
+      for (let index = 0; index < input.source.storageItems.length; index += 1) {
+        const item = input.source.storageItems[index];
+        const extraction = await extractNotes({
+            inputType: 'storage',
+            sourceUploadId: item.sourceUploadId,
+            storagePath: item.storagePath,
+            mimeType: item.mimeType,
+            title: item.title || `${input.title ?? 'Uploaded image'} ${index + 1}`,
+          });
+
+        extractions.push(extraction);
+      }
+
+      extractedText = extractions
+        .map((extraction, index) => {
+          const sectionTitle = extraction.title || `Image ${index + 1}`;
+
+          return `SOURCE IMAGE ${index + 1}: ${sectionTitle}\n${extraction.extractedText.trim()}`;
+        })
+        .filter(Boolean)
+        .join('\n\n');
+      topics = dedupeTopics(extractions.flatMap((extraction) => extraction.keyTopics)).slice(0, 8);
+      resolvedTitle = input.title?.trim() || `${extractions.length} image notes`;
+      extractionMs = getElapsedMs(extractionStartMs);
+      extractionMethod = extractions.some((extraction) => extraction.method === 'gemini_flash')
+        ? 'gemini_flash'
+        : 'normalized_text';
+      extractionCacheStatus = extractions.every((extraction) => extraction.cacheStatus === 'hit')
+        ? 'hit'
+        : extractions.every((extraction) => extraction.cacheStatus === 'not_applicable')
+          ? 'not_applicable'
+          : 'miss';
+    } else {
+      const extraction = await extractNotes(
+        input.source.inputType === 'text'
+          ? {
+              inputType: 'text',
+              rawText: input.source.rawText,
+              sourceUploadId: input.source.sourceUploadId,
+              title: input.title,
+            }
+          : {
+              inputType: 'storage',
+              sourceUploadId: input.source.sourceUploadId,
+              storagePath: input.source.storagePath,
+              mimeType: input.source.mimeType,
+              title: input.title,
+            },
+      );
+
+      extractedText = extraction.extractedText.trim();
+      topics = extraction.keyTopics.slice(0, 8);
+      resolvedTitle = extraction.title;
+      extractionMs = getElapsedMs(extractionStartMs);
+      extractionMethod = extraction.method;
+      extractionCacheStatus = extraction.cacheStatus;
+    }
   }
 
   if (!extractedText) {

@@ -75,6 +75,7 @@ Use at least:
 - one short pasted UPSC GS1 note sample
 - one PDF with selectable text
 - one scanned PDF or image requiring extraction/OCR
+- one batch of 2 to 10 related images
 - one invalid file type
 - one file over 50 MB or a simulated oversized file
 - one intentionally empty pasted-text submission
@@ -249,7 +250,41 @@ Recommended sample topics:
   - Storage object exists in `raw-notes`.
 - **Status**: Not Run
 
-### T-024: Invalid File Type Is Blocked
+### T-024: Image Batch Upload Shows Selected Files
+
+- **Milestone**: Source input and storage
+- **Steps**:
+  1. Select `File upload`.
+  2. Choose 2 to 10 valid images under 50 MB each.
+- **Expected Result**:
+  - The app shows the number of selected images.
+  - Each selected image name and size is visible.
+  - User can clear the selection before generation.
+- **Status**: Not Run
+
+### T-025: More Than 10 Images Is Blocked
+
+- **Milestone**: Source input and storage
+- **Steps**:
+  1. Select `File upload`.
+  2. Choose 11 or more images.
+- **Expected Result**:
+  - App shows `Select up to 10 images at once.`
+  - Files are not queued for upload.
+- **Status**: Not Run
+
+### T-026: Mixed PDF and Image Selection Is Blocked
+
+- **Milestone**: Source input and storage
+- **Steps**:
+  1. Select `File upload`.
+  2. Choose one PDF and one image together.
+- **Expected Result**:
+  - App asks the user to upload one PDF or images only.
+  - Files are not queued for upload.
+- **Status**: Not Run
+
+### T-027: Invalid File Type Is Blocked
 
 - **Milestone**: Source input and storage
 - **Steps**:
@@ -260,7 +295,7 @@ Recommended sample topics:
   - File is not queued for upload.
 - **Status**: Not Run
 
-### T-025: Oversized File Is Blocked
+### T-028: Oversized File Is Blocked
 
 - **Milestone**: Source input and storage
 - **Steps**:
@@ -305,6 +340,17 @@ Recommended sample topics:
 - **Expected Result**:
   - OCR/extraction produces usable text.
   - Generated questions relate to the image content.
+- **Status**: Not Run
+
+### T-033: Image Batch OCR Works
+
+- **Milestone**: Extraction pipeline
+- **Steps**:
+  1. Upload 2 to 10 related images of notes.
+  2. Generate MCQs.
+- **Expected Result**:
+  - OCR/extraction processes the image batch.
+  - Generated questions reflect the combined image content.
 - **Status**: Not Run
 
 ## MCQ Generation Tests
@@ -639,6 +685,7 @@ Phase 1 is ready for controlled user testing only when:
 - [ ] Pasted text end-to-end flow passes.
 - [ ] PDF end-to-end flow passes.
 - [ ] Image/OCR end-to-end flow passes.
+- [ ] Multi-image OCR end-to-end flow passes.
 - [ ] 5, 10, and 15 MCQ generation are verified.
 - [ ] Quiz attempt and completion tests pass.
 - [ ] Cloud result save passes.

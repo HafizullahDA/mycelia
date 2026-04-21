@@ -190,6 +190,75 @@ export async function POST(request: Request) {
       );
     }
 
+    if (inputType === 'storage_batch') {
+      const storageItems = Array.isArray(body.storageItems)
+        ? body.storageItems
+            .map((item) => {
+              if (!item || typeof item !== 'object') {
+                return null;
+              }
+
+              const record = item as Record<string, unknown>;
+              const storagePath = typeof record.storagePath === 'string' ? record.storagePath : '';
+              const mimeType = typeof record.mimeType === 'string' ? record.mimeType : '';
+              const itemTitle = typeof record.title === 'string' ? record.title : 'Uploaded image';
+              const itemSourceUploadId =
+                typeof record.sourceUploadId === 'string' ? record.sourceUploadId : undefined;
+
+              if (!storagePath || !mimeType) {
+                return null;
+              }
+
+              return {
+                sourceUploadId: itemSourceUploadId,
+                storagePath,
+                mimeType,
+                title: itemTitle,
+              };
+            })
+            .filter((item): item is NonNullable<typeof item> => Boolean(item))
+        : [];
+
+      if (storageItems.length === 0) {
+        return NextResponse.json(
+          { error: 'At least one image is required for batch generation.' },
+          { status: 400 },
+        );
+      }
+
+      if (storageItems.length > 10) {
+        return NextResponse.json(
+          { error: 'Select up to 10 images at once.' },
+          { status: 400 },
+        );
+      }
+
+      const result = await generateMcqs({
+        title,
+        questionCount,
+        source: {
+          inputType: 'storage_batch',
+          sourceUploadId,
+          storageItems,
+        },
+      });
+
+      logRequestInfo(context, 'request_completed', {
+        status: 200,
+        durationMs: getRequestDurationMs(context),
+        ...getGenerationLogMetadata(result),
+      });
+
+      return NextResponse.json(
+        { result, requestId: context.requestId },
+        {
+          headers: {
+            'X-Request-Id': context.requestId,
+          },
+        },
+      );
+    }
+
     logRequestWarn(context, 'request_rejected', {
       status: 400,
       durationMs: getRequestDurationMs(context),

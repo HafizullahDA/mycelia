@@ -41,6 +41,7 @@ Already implemented in code:
 
 - auth flows
 - source submission for PDF, image, and pasted text
+- image batch upload up to 10 images with visible selected-file confirmation
 - source metadata storage
 - Supabase Storage upload path
 - extraction route
@@ -186,21 +187,25 @@ Students can provide source material through PDF, image, or pasted text.
    - `5`
    - `10`
    - `15`
-5. Validate file type:
-   - PDF
-   - image
-6. Validate file size:
+5. Validate file type and count:
+   - one PDF
+   - up to 10 images
+   - no mixed PDF/image batches
+6. Show selected files before upload.
+7. Validate file size:
    - under 50 MB
-7. Upload valid files to `raw-notes`.
-8. Insert file metadata in `source_uploads`.
-9. Insert pasted text in `source_uploads`.
-10. Show source preparation state.
-11. Show actionable errors for invalid input or missing setup.
+8. Upload valid files to `raw-notes`.
+9. Insert file metadata in `source_uploads`.
+10. Insert pasted text in `source_uploads`.
+11. Show source preparation state.
+12. Show actionable errors for invalid input or missing setup.
 
 ### Done When
 
 - PDF upload works.
-- Image upload works.
+- Single image upload works.
+- Image batch upload works for up to 10 images.
+- Selected files are visible before generation.
 - Pasted text works.
 - Source metadata is stored.
 - Learner-facing copy stays simple.

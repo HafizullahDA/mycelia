@@ -46,6 +46,17 @@ type GenerationSource =
       inputType: 'storage';
       storagePath: string;
       mimeType: string;
+    }
+  | {
+      sourceUploadId?: string;
+      title: string;
+      inputType: 'storage_batch';
+      storageItems: Array<{
+        sourceUploadId?: string;
+        storagePath: string;
+        mimeType: string;
+        title: string;
+      }>;
     };
 
 type SourceUploadRow = {
@@ -69,6 +80,7 @@ type SaveMetadataResult =
     };
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+const MAX_IMAGE_BATCH_FILES = 10;
 const RAW_NOTES_BUCKET = 'raw-notes';
 const QUESTION_COUNT_OPTIONS = [5, 10, 15] as const;
 
@@ -182,7 +194,7 @@ export function DashboardUploadWorkspace() {
   const [authChecking, setAuthChecking] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
   const [mode, setMode] = useState<UploadMode>('file');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [textInput, setTextInput] = useState('');
   const [title, setTitle] = useState('');
   const [questionCount, setQuestionCount] =
@@ -379,30 +391,56 @@ export function DashboardUploadWorkspace() {
     processingStep === 'building' ||
     processingStep === 'saving';
 
-  const handleFileSelect = (file: File | null) => {
+  const handleFileSelect = (files: FileList | null) => {
     setError('');
     setSuccessMessage('');
 
-    if (!file) {
-      setSelectedFile(null);
+    const nextFiles = Array.from(files ?? []);
+
+    if (nextFiles.length === 0) {
+      setSelectedFiles([]);
       return;
     }
 
-    const kind = classifyFile(file);
+    const classifiedFiles = nextFiles.map((file) => ({
+      file,
+      kind: classifyFile(file),
+    }));
 
-    if (!kind) {
-      setSelectedFile(null);
-      setError('Upload a PDF or image file only.');
+    if (classifiedFiles.some((item) => !item.kind)) {
+      setSelectedFiles([]);
+      setError('Upload one PDF or up to 10 image files only.');
       return;
     }
 
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      setSelectedFile(null);
+    const hasPdf = classifiedFiles.some((item) => item.kind === 'pdf');
+    const hasImage = classifiedFiles.some((item) => item.kind === 'image');
+
+    if (hasPdf && nextFiles.length > 1) {
+      setSelectedFiles([]);
+      setError('Upload one PDF at a time, or select up to 10 images.');
+      return;
+    }
+
+    if (hasPdf && hasImage) {
+      setSelectedFiles([]);
+      setError('Upload one PDF, or select images only. Do not mix PDFs and images.');
+      return;
+    }
+
+    if (hasImage && nextFiles.length > MAX_IMAGE_BATCH_FILES) {
+      setSelectedFiles([]);
+      setError(`Select up to ${MAX_IMAGE_BATCH_FILES} images at once.`);
+      return;
+    }
+
+    if (nextFiles.some((file) => file.size > MAX_FILE_SIZE_BYTES)) {
+      setSelectedFiles([]);
       setError('Keep files under 50 MB.');
       return;
     }
 
-    setSelectedFile(file);
+    setSelectedFiles(nextFiles);
   };
 
   const saveMetadataRecord = async (payload: {
@@ -491,15 +529,35 @@ export function DashboardUploadWorkspace() {
       return;
     }
 
-    if (!selectedFile) {
-      setError('Choose a PDF or image file first.');
+    if (selectedFiles.length === 0) {
+      setError('Choose one PDF or up to 10 image files first.');
       return;
     }
 
-    const kind = classifyFile(selectedFile);
+    const classifiedFiles = selectedFiles.map((file) => ({
+      file,
+      kind: classifyFile(file),
+    }));
+    const hasPdf = classifiedFiles.some((item) => item.kind === 'pdf');
+    const hasImage = classifiedFiles.some((item) => item.kind === 'image');
 
-    if (!kind) {
-      setError('Upload a PDF or image file only.');
+    if (classifiedFiles.some((item) => !item.kind)) {
+      setError('Upload one PDF or up to 10 image files only.');
+      return;
+    }
+
+    if (hasPdf && selectedFiles.length > 1) {
+      setError('Upload one PDF at a time, or select up to 10 images.');
+      return;
+    }
+
+    if (hasPdf && hasImage) {
+      setError('Upload one PDF, or select images only. Do not mix PDFs and images.');
+      return;
+    }
+
+    if (hasImage && selectedFiles.length > MAX_IMAGE_BATCH_FILES) {
+      setError(`Select up to ${MAX_IMAGE_BATCH_FILES} images at once.`);
       return;
     }
 
@@ -511,62 +569,119 @@ export function DashboardUploadWorkspace() {
     setGenerationResult(null);
     setSelectedPastSession(null);
 
-    const safeName = sanitizeFileName(selectedFile.name);
-    const storagePath = `${user.id}/${Date.now()}-${safeName}`;
-    const resolvedTitle = title.trim() || selectedFile.name.replace(/\.[^.]+$/, '');
-
     const supabase = getSupabaseBrowserClient();
-    const { error: uploadError } = await supabase.storage.from(RAW_NOTES_BUCKET).upload(storagePath, selectedFile, {
-      cacheControl: '3600',
-      upsert: false,
-    });
-
-    if (uploadError) {
-      setProcessingStep('error');
-      setError(
-        uploadError.message.includes('bucket')
-          ? 'Create the raw-notes bucket in Supabase before uploading files.'
-          : 'The file could not be uploaded. Try again.',
-      );
-      setUploading(false);
-      return;
-    }
+    const batchTimestamp = Date.now();
+    const uploadedItems: Array<{
+      file: File;
+      kind: SourceKind;
+      storagePath: string;
+      title: string;
+    }> = [];
 
     try {
-      const metadataResult = await saveMetadataRecord({
-        upload_type: kind,
-        title: resolvedTitle,
-        original_filename: selectedFile.name,
-        mime_type: selectedFile.type || null,
-        file_size_bytes: selectedFile.size,
-        storage_bucket: RAW_NOTES_BUCKET,
-        storage_path: storagePath,
-        raw_text: null,
-      });
+      for (let index = 0; index < classifiedFiles.length; index += 1) {
+        const item = classifiedFiles[index];
 
-      const savedItem: SavedSourceItem = {
-        id: metadataResult.status === 'saved' ? metadataResult.sourceId : storagePath,
-        kind,
-        label: selectedFile.name,
-        status: metadataResult.status,
-        detail:
-          metadataResult.status === 'saved'
-            ? `${formatBytes(selectedFile.size)} - saved and ready`
-            : 'Stored in bucket, but metadata table still needs setup',
-        storagePath,
-        mimeType: selectedFile.type,
-        title: resolvedTitle,
-      };
+        if (!item.kind) {
+          throw new Error('Upload one PDF or up to 10 image files only.');
+        }
 
-      pushSavedItem(savedItem);
-      setSelectedFile(null);
+        const safeName = sanitizeFileName(item.file.name);
+        const storagePath = `${user.id}/${batchTimestamp}-${index + 1}-${safeName}`;
+        const itemTitle =
+          title.trim() ||
+          (selectedFiles.length === 1
+            ? item.file.name.replace(/\.[^.]+$/, '')
+            : `Image ${index + 1}: ${item.file.name.replace(/\.[^.]+$/, '')}`);
+
+        const { error: uploadError } = await supabase.storage
+          .from(RAW_NOTES_BUCKET)
+          .upload(storagePath, item.file, {
+            cacheControl: '3600',
+            upsert: false,
+          });
+
+        if (uploadError) {
+          throw new Error(
+            uploadError.message.includes('bucket')
+              ? 'Create the raw-notes bucket in Supabase before uploading files.'
+              : `The file could not be uploaded: ${item.file.name}`,
+          );
+        }
+
+        uploadedItems.push({
+          file: item.file,
+          kind: item.kind,
+          storagePath,
+          title: itemTitle,
+        });
+      }
+
+      const savedBatchItems: Array<
+        SavedSourceItem & {
+          sourceUploadId?: string;
+        }
+      > = [];
+
+      for (const item of uploadedItems) {
+        const metadataResult = await saveMetadataRecord({
+          upload_type: item.kind,
+          title: item.title,
+          original_filename: item.file.name,
+          mime_type: item.file.type || null,
+          file_size_bytes: item.file.size,
+          storage_bucket: RAW_NOTES_BUCKET,
+          storage_path: item.storagePath,
+          raw_text: null,
+        });
+
+        const savedItem: SavedSourceItem & { sourceUploadId?: string } = {
+          id: metadataResult.status === 'saved' ? metadataResult.sourceId : item.storagePath,
+          sourceUploadId: metadataResult.status === 'saved' ? metadataResult.sourceId : undefined,
+          kind: item.kind,
+          label: item.file.name,
+          status: metadataResult.status,
+          detail:
+            metadataResult.status === 'saved'
+              ? `${formatBytes(item.file.size)} - saved and ready`
+              : 'Stored in bucket, but metadata table still needs setup',
+          storagePath: item.storagePath,
+          mimeType: item.file.type,
+          title: item.title,
+        };
+
+        savedBatchItems.push(savedItem);
+        pushSavedItem(savedItem);
+      }
+
+      setSelectedFiles([]);
       setTitle('');
+
+      if (savedBatchItems.length === 1) {
+        const item = savedBatchItems[0];
+
+        queueGenerationSource({
+          sourceUploadId: item.sourceUploadId,
+          inputType: 'storage',
+          storagePath: item.storagePath ?? '',
+          mimeType: item.mimeType ?? '',
+          title: item.title ?? item.label,
+        });
+        return;
+      }
+
+      const batchTitle = title.trim() || `${savedBatchItems.length} image notes`;
+
       queueGenerationSource({
-        sourceUploadId: metadataResult.status === 'saved' ? metadataResult.sourceId : undefined,
-        inputType: 'storage',
-        storagePath,
-        mimeType: selectedFile.type,
-        title: resolvedTitle,
+        sourceUploadId: savedBatchItems[0]?.sourceUploadId,
+        inputType: 'storage_batch',
+        title: batchTitle,
+        storageItems: savedBatchItems.map((item, index) => ({
+          sourceUploadId: item.sourceUploadId,
+          storagePath: item.storagePath ?? '',
+          mimeType: item.mimeType ?? '',
+          title: item.title ?? `Image ${index + 1}`,
+        })),
       });
     } catch (error) {
       setProcessingStep('error');
@@ -840,12 +955,12 @@ export function DashboardUploadWorkspace() {
                       <span className="flex h-12 w-12 items-center justify-center rounded-full border border-[#C8A44A]/18 bg-[#C8A44A]/10 text-[#C8A44A] shadow-[0_0_24px_rgba(200,164,74,0.08)]">
                         <FileIcon />
                       </span>
-                      <span className="mt-5 text-base font-semibold text-[#F9FAFB] sm:text-lg">Drop a PDF or image here</span>
+                      <span className="mt-5 text-base font-semibold text-[#F9FAFB] sm:text-lg">Drop one PDF or up to 10 images here</span>
                       <span className="mt-2 max-w-md text-sm leading-6 text-[#9CA3AF]">
-                        Upload scanned notes, handwritten pages, or typed PDFs. Files up to 50 MB are supported, and larger PDFs are processed in smaller batches behind the scenes.
+                        Upload scanned notes, handwritten pages, or typed PDFs. Select multiple images together to build one quiz from the full batch.
                       </span>
                       <span className="mt-5 rounded-lg border border-white/10 bg-[#0A0F1A] px-4 py-2 text-sm font-medium text-[#F9FAFB]">
-                        Choose file
+                        Choose files
                       </span>
                     </label>
 
@@ -853,14 +968,46 @@ export function DashboardUploadWorkspace() {
                       accept=".pdf,image/*"
                       className="sr-only"
                       id="source-file"
-                      onChange={(event) => handleFileSelect(event.target.files?.[0] ?? null)}
+                      multiple
+                      onChange={(event) => handleFileSelect(event.target.files)}
                       type="file"
                     />
 
-                    {selectedFile ? (
-                      <div className="rounded-2xl border border-white/10 bg-[#0A0F1A] px-4 py-3 text-sm text-[#9CA3AF]">
-                        <p className="break-all font-medium text-[#F9FAFB]">{selectedFile.name}</p>
-                        <p className="mt-1">{formatBytes(selectedFile.size)}</p>
+                    {selectedFiles.length > 0 ? (
+                      <div className="rounded-2xl border border-white/10 bg-[#0A0F1A] px-4 py-4 text-sm text-[#9CA3AF]">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="font-medium text-[#F9FAFB]">
+                            {selectedFiles.length === 1
+                              ? '1 source selected'
+                              : `${selectedFiles.length} images selected`}
+                          </p>
+                          <button
+                            className="w-fit text-xs font-semibold uppercase tracking-[0.16em] text-[#9CA3AF] transition hover:text-[#F9FAFB]"
+                            onClick={() => {
+                              setSelectedFiles([]);
+                              setError('');
+                              setSuccessMessage('');
+                            }}
+                            type="button"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          {selectedFiles.map((file, index) => (
+                            <div
+                              className="flex flex-col gap-1 rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                              key={`${file.name}-${file.lastModified}-${index}`}
+                            >
+                              <p className="break-all font-medium text-[#F9FAFB]">
+                                {index + 1}. {file.name}
+                              </p>
+                              <p className="shrink-0 text-xs uppercase tracking-[0.14em] text-[#6B7280]">
+                                {formatBytes(file.size)}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ) : null}
                   </div>

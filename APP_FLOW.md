@@ -189,23 +189,23 @@ Error states:
 ### Flow 3: Generate MCQs from Uploaded File
 
 Goal:
-- Student wants to convert a PDF or image into UPSC-style MCQs.
+- Student wants to convert one PDF or a batch of images into UPSC-style MCQs.
 
 Trigger:
-- User selects `File upload`, chooses a file, selects question count, and clicks `Generate MCQs`.
+- User selects `File upload`, chooses one PDF or up to 10 images, confirms the selected file list, selects question count, and clicks `Generate MCQs`.
 
 Flow:
 
 ```text
 [Dashboard Workspace]
   --> (Select File upload)
-  --> (Choose PDF or image)
-  --> {Valid file?}
+  --> (Choose one PDF or up to 10 images)
+  --> {Valid file selection?}
     --> No --> ((File validation error))
     --> Yes --> (Choose 5, 10, or 15 MCQs)
       --> (Click Generate MCQs)
       --> ((Preparing your source))
-      --> {Upload to raw-notes succeeds?}
+      --> {Upload all files to raw-notes succeeds?}
         --> No --> ((Upload or bucket error))
         --> Yes --> [[/api/generate-mcqs]]
           --> ((Generating MCQs))
@@ -219,13 +219,17 @@ Success path:
 
 Decision points:
 - Is the user authenticated?
-- Is the file a PDF or image?
-- Is the file under 50 MB?
+- Is the selection one PDF, or images only?
+- Is the image selection 10 files or fewer?
+- Is each file under 50 MB?
 - Does the `raw-notes` bucket exist?
 - Does generation return a valid quiz result?
 
 Error states:
-- `Upload a PDF or image file only.`
+- `Upload one PDF or up to 10 image files only.`
+- `Upload one PDF at a time, or select up to 10 images.`
+- `Upload one PDF, or select images only. Do not mix PDFs and images.`
+- `Select up to 10 images at once.`
 - `Keep files under 50 MB.`
 - `Create the raw-notes bucket in Supabase before uploading files.`
 - `The file could not be uploaded. Try again.`

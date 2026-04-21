@@ -32,9 +32,9 @@
    - Error state: Missing Supabase browser config shows an environment setup notice instead of the workspace.
 
 3. **Source Input**
-   - User sees: Either a PDF/image upload drop area or a pasted-notes textarea.
-   - User can do: Upload a PDF or image up to 50 MB, paste text notes, optionally add a source title, and click `Generate MCQs`.
-   - System does: Validates input type, validates file size, saves source metadata, uploads files to the `raw-notes` bucket, or stores pasted text in `source_uploads`.
+   - User sees: Either a file upload drop area or a pasted-notes textarea.
+   - User can do: Upload one PDF, upload up to 10 images at once, paste text notes, optionally add a source title, and click `Generate MCQs`.
+   - System does: Validates input type, validates file count, validates file size, shows selected files, saves source metadata, uploads files to the `raw-notes` bucket, or stores pasted text in `source_uploads`.
    - Success state: Source is queued for quiz generation and the app moves into preparation.
    - Error state: User sees a specific message for invalid file type, oversized file, missing text, missing auth, missing Supabase setup, missing bucket, or failed upload.
 
@@ -114,10 +114,10 @@
 ### Screen: Source Input
 
 - **Purpose**: Capture the study material that will become quiz questions.
-- **Primary Actions**: Choose PDF/image, paste text, click `Generate MCQs`.
+- **Primary Actions**: Choose one PDF, choose up to 10 images, paste text, click `Generate MCQs`.
 - **Secondary Actions**: Enter or edit source title, switch between file and text modes.
-- **Required Content**: File drop area or notes textarea, source title, question count controls.
-- **Validation Rules**: PDF or image only for files; max file size 50 MB; pasted text must not be empty.
+- **Required Content**: File drop area or notes textarea, selected-file confirmation list, source title, question count controls.
+- **Validation Rules**: One PDF at a time, or up to 10 images at once; max file size 50 MB; pasted text must not be empty.
 - **Empty State**: No file selected or empty textarea.
 - **Loading State**: `Preparing source...`
 - **Error State**: `Upload a PDF or image file only.`, `Keep files under 50 MB.`, `Paste some notes first.`
@@ -175,7 +175,9 @@
 
 - Missing Supabase browser environment: show setup notice and do not render broken dashboard controls.
 - Unauthenticated dashboard visit: redirect to `/login`.
-- Unsupported file type: reject file and ask for PDF or image.
+- Unsupported file type: reject file and ask for one PDF or up to 10 images.
+- More than 10 images: reject selection and explain the 10-image limit.
+- Mixed PDF and image selection: reject selection and ask the user to choose one PDF or images only.
 - File over 50 MB: reject file and ask for a smaller source.
 - Empty pasted notes: block generation and ask user to paste notes first.
 - Missing `raw-notes` bucket: show bucket setup message.
@@ -224,9 +226,11 @@
 
 - [ ] User can sign in and reach `/dashboard`.
 - [ ] Unauthenticated user is redirected to `/login`.
-- [ ] User can upload a valid PDF or image under 50 MB.
+- [ ] User can upload a valid PDF under 50 MB.
+- [ ] User can upload up to 10 valid images under 50 MB each.
+- [ ] Selected image batches show a visible confirmation list before generation.
 - [ ] User can paste text notes instead of uploading a file.
-- [ ] Invalid file type and oversized file are blocked before upload.
+- [ ] Invalid file type, oversized file, mixed PDF/image selection, and more than 10 images are blocked before upload.
 - [ ] Empty pasted notes are blocked before generation.
 - [ ] User can choose 5, 10, or 15 MCQs.
 - [ ] Source preparation state appears before generation.
