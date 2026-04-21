@@ -1,4 +1,3 @@
-import { promptRegistry } from '@/lib/server/prompts';
 import { extractNotes } from '@/lib/server/extract-notes';
 import { validatePromptMcqPayload } from '@/lib/server/validation/mcq-validator';
 import { fetchVertexAiGenerateContent } from '@/lib/server/vertex-ai';
@@ -244,6 +243,31 @@ const getMcqOutputTokenLimit = (questionCount: number): number => {
 
   return 8_192;
 };
+
+const buildOriginalMcqPrompt = (input: {
+  title?: string;
+  questionCount: number;
+  keyTopics: string[];
+  sourceText: string;
+}): string =>
+  [
+    'You write premium UPSC Civil Services preliminary exam style MCQs.',
+    'Return valid JSON only.',
+    'Use this exact shape:',
+    '{"title":"string","mcqs":[{"question":"string","options":[{"id":"A","text":"string"},{"id":"B","text":"string"},{"id":"C","text":"string"},{"id":"D","text":"string"}],"correctAnswer":"A","explanation":"string","conceptTag":"string"}]}',
+    `Generate exactly ${input.questionCount} MCQs.`,
+    'The questions must feel like serious UPSC preparation material, not generic school trivia.',
+    'Prefer concept clarity, constitutional nuance, historical precision, governance framing, and close distractors when the material supports it.',
+    'Every question must have exactly 4 options and exactly 1 correct answer.',
+    'Each explanation should briefly justify the correct answer and, when useful, explain why the distractors are wrong.',
+    'Do not invent facts that are not grounded in the source notes.',
+    input.title ? `Source title: ${input.title}` : 'Source title: Uploaded notes',
+    input.keyTopics.length > 0
+      ? `Priority topics: ${input.keyTopics.join(', ')}`
+      : 'Priority topics: none provided',
+    'Source notes:',
+    input.sourceText,
+  ].join('\n');
 
 const buildChunkCompressionPrompt = (input: {
   title?: string;
@@ -620,9 +644,7 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
   const compressionMs = getElapsedMs(compressionStartMs);
   const mcqGenerationStartMs = Date.now();
   let lastValidationError: Error | null = null;
-  const generationModels = Array.from(
-    new Set([mcqModel, proModel].filter((model): model is string => Boolean(model))),
-  );
+  const generationModels = [mcqModel];
   let bestParsedPayload: ReturnType<typeof validatePromptMcqPayload> | null = null;
   let bestParsedPayloadModel = generationModels[0] ?? 'unknown';
   let bestParsedPayloadAttempt = 0;
@@ -650,18 +672,16 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
 
   for (let modelIndex = 0; modelIndex < generationModels.length; modelIndex += 1) {
     const model = generationModels[modelIndex];
-    const retryCount = 2;
+    const retryCount = 1;
 
     for (let retryIndex = 0; retryIndex < retryCount; retryIndex += 1) {
       const currentAttempt = generationAttemptCount;
       generationAttemptCount += 1;
-      const prompt = promptRegistry.mcq.upscGs1({
+      const prompt = buildOriginalMcqPrompt({
         title: resolvedTitle,
         questionCount,
         keyTopics: mcqSource.keyTopics,
         sourceText: mcqSource.sourceText,
-        validationFeedback: lastValidationError?.message,
-        prioritizeCorrectness: model === proModel || retryIndex > 0,
       });
 
       try {
@@ -673,7 +693,7 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
             },
           ],
           generationConfig: {
-            temperature: retryIndex > 0 ? 0.15 : 0.25,
+            temperature: 0.35,
             maxOutputTokens: getMcqOutputTokenLimit(questionCount),
             responseMimeType: 'application/json',
           },
