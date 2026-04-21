@@ -58,6 +58,7 @@ const COMPRESSION_CHUNK_CHARS = 40_000;
 const MAX_COMPRESSED_CONTEXT_CHARS = 20_000;
 const MAX_TRACKED_TOPICS = 10;
 const COMPRESSION_CONCURRENCY = 3;
+const IMAGE_BATCH_EXTRACTION_CONCURRENCY = 2;
 
 type McqSourceContext = {
   sourceText: string;
@@ -531,20 +532,18 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
   } else {
     const extractionStartMs = Date.now();
     if (input.source.inputType === 'storage_batch') {
-      const extractions = [];
-
-      for (let index = 0; index < input.source.storageItems.length; index += 1) {
-        const item = input.source.storageItems[index];
-        const extraction = await extractNotes({
+      const extractions = await runWithConcurrency(
+        input.source.storageItems,
+        IMAGE_BATCH_EXTRACTION_CONCURRENCY,
+        (item, index) =>
+          extractNotes({
             inputType: 'storage',
             sourceUploadId: item.sourceUploadId,
             storagePath: item.storagePath,
             mimeType: item.mimeType,
             title: item.title || `${input.title ?? 'Uploaded image'} ${index + 1}`,
-          });
-
-        extractions.push(extraction);
-      }
+          }),
+      );
 
       extractedText = extractions
         .map((extraction, index) => {

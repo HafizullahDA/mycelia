@@ -251,6 +251,7 @@ Dashboard file input
   --> POST /api/generate-mcqs
   --> generate-mcqs server helper
   --> extract-notes server helper for one source or each image in the batch
+  --> image batch OCR runs with limited concurrency
   --> Gemini Flash for extraction/OCR when needed
   --> Gemini Pro for MCQ generation
   --> MCQ validation

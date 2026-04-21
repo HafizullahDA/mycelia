@@ -264,7 +264,7 @@ Responsibilities:
 - Validate that image batches contain 1 to 10 items.
 - Use extracted source text when available.
 - Extract storage-backed files when needed.
-- Combine extracted text from image batches into one MCQ source.
+- Extract image batches with limited concurrency, then combine extracted text into one MCQ source.
 - Call Gemini Pro generation.
 - Validate generated MCQs.
 - Return quiz token and structured MCQs.

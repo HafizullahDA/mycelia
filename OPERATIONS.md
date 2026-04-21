@@ -331,6 +331,21 @@ Fix:
 4. Check server logs for validation or model errors.
 5. Avoid repeatedly testing with a large PDF until pasted text works.
 
+### Image Batch Generation Is Slow
+
+Expected behavior:
+
+- Multiple images require OCR before MCQ generation.
+- The backend processes image OCR with limited concurrency to reduce total wait time without sending all images at once.
+- Larger batches and dense screenshots can still take a few minutes.
+
+If a 5-image batch takes several minutes:
+
+1. Retry with the same images once; cached extraction may make follow-up generation faster.
+2. Test 5 questions before 10 or 15.
+3. Use clearer, cropped images where possible.
+4. Split unrelated images into separate smaller quizzes.
+
 ### Quiz Results Do Not Save to Supabase
 
 Likely causes:
