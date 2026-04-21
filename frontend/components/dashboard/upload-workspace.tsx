@@ -993,16 +993,16 @@ export function DashboardUploadWorkspace() {
                             Clear
                           </button>
                         </div>
-                        <div className="mt-3 space-y-2">
+                        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-5">
                           {selectedFiles.map((file, index) => (
                             <div
-                              className="flex flex-col gap-1 rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                              className="min-w-0 rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2"
                               key={`${file.name}-${file.lastModified}-${index}`}
                             >
-                              <p className="break-all font-medium text-[#F9FAFB]">
+                              <p className="truncate text-sm font-medium text-[#F9FAFB]" title={file.name}>
                                 {index + 1}. {file.name}
                               </p>
-                              <p className="shrink-0 text-xs uppercase tracking-[0.14em] text-[#6B7280]">
+                              <p className="mt-1 text-xs uppercase tracking-[0.14em] text-[#6B7280]">
                                 {formatBytes(file.size)}
                               </p>
                             </div>
