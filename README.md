@@ -5,6 +5,27 @@
 - `docs/`: PRD and phased implementation planning
 - `supabase/`: SQL setup and database support files
 
+## Documentation
+- `guide.md`: documentation sequence and templates for PRD, app flow, user flow, backend structure, frontend guidelines, technical spec, data model, prompts, implementation plan, tests, and operations
+- `APP_FLOW.md`: application route map, entry points, decision branches, navigation rules, and goal-based flowcharts
+- `USER_FLOW.md`: current Phase 1 user journey from sign-in through notes upload, MCQ generation, quiz attempt, result save, and past-session review
+- `BACKEND_STRUCTURE.md`: backend ownership, data movement, storage boundaries, API responsibilities, and server-side data rules
+- `FRONTEND_GUIDELINES.md`: visual design rules, component behavior, UI states, accessibility, and page-specific frontend guidance
+- `TECHNICAL_SPEC.md`: implementation reference for frontend, backend, APIs, data, AI pipeline, security, environment, and verification
+- `IMPLEMENTATION_PLAN.md`: canonical build order with milestones, done criteria, status, stabilization, and release-readiness gates
+- `TEST_PLAN.md`: manual, API, data, responsive, accessibility, and release-gate verification plan
+- `OPERATIONS.md`: local setup, environment, Supabase, storage, health checks, troubleshooting, and release runbook
+- `docs/prd/`: existing product architecture, phased PRD notes, API plan, data model, and implementation checklist
+
+Recommended order for new product work:
+1. update the PRD or relevant phase doc
+2. update `APP_FLOW.md`
+3. update `USER_FLOW.md`
+4. update `BACKEND_STRUCTURE.md`
+5. update `FRONTEND_GUIDELINES.md`
+6. update the technical/API/data/prompt docs
+7. update implementation and test plans
+
 ## Core AI split
 - `gemini-2.5-pro`: nuanced MCQ generation and reasoning
 - `gemini-2.5-flash`: OCR, extraction, and lightweight preprocessing
@@ -24,6 +45,8 @@ From the repo root:
 
 Or directly:
 - `npm --prefix frontend run dev`
+
+For full setup, troubleshooting, and release-readiness steps, see `OPERATIONS.md`.
 
 ## Basic health check
 Once the app is running, you can verify the core service state at:
