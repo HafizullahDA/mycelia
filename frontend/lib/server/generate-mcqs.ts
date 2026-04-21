@@ -55,6 +55,8 @@ const MAX_QUESTION_COUNT = 15;
 const MAX_DIRECT_MCQ_SOURCE_CHARS = 22_000;
 const COMPRESSION_CHUNK_CHARS = 40_000;
 const MAX_COMPRESSED_CONTEXT_CHARS = 20_000;
+const MAX_PRIMARY_MCQ_CONTEXT_CHARS = 9_000;
+const MAX_FALLBACK_MCQ_CONTEXT_CHARS = 7_000;
 const MAX_TRACKED_TOPICS = 10;
 const COMPRESSION_CONCURRENCY = 3;
 const IMAGE_BATCH_EXTRACTION_CONCURRENCY = 2;
@@ -266,6 +268,30 @@ const buildOriginalMcqPrompt = (input: {
       ? `Priority topics: ${input.keyTopics.join(', ')}`
       : 'Priority topics: none provided',
     'Source notes:',
+    input.sourceText,
+  ].join('\n');
+
+const buildFocusedFallbackMcqPrompt = (input: {
+  title?: string;
+  questionCount: number;
+  keyTopics: string[];
+  sourceText: string;
+}): string =>
+  [
+    'Create a usable UPSC Civil Services preliminary exam quiz from the notes below.',
+    'Return valid JSON only.',
+    'Use this exact shape:',
+    '{"title":"string","mcqs":[{"question":"string","options":[{"id":"A","text":"string"},{"id":"B","text":"string"},{"id":"C","text":"string"},{"id":"D","text":"string"}],"correctAnswer":"A","explanation":"string","conceptTag":"string"}]}',
+    `Generate exactly ${input.questionCount} MCQs.`,
+    'Use only clear facts, concepts, names, dates, provisions, events, or distinctions present in the notes.',
+    'Prefer direct but serious UPSC-style questions over complex statement formats.',
+    'Each question must have 4 options, exactly one correct answer, and a brief explanation.',
+    'Do not apologize. Do not say the source is insufficient. Create the best valid quiz possible from the available notes.',
+    input.title ? `Source title: ${input.title}` : 'Source title: Uploaded notes',
+    input.keyTopics.length > 0
+      ? `Priority topics: ${input.keyTopics.join(', ')}`
+      : 'Priority topics: none provided',
+    'Focused notes:',
     input.sourceText,
   ].join('\n');
 
@@ -641,6 +667,7 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
     extractedText,
     keyTopics: topics,
   });
+  const cleanedExtractedText = stripRepeatedBoilerplate(extractedText);
   const compressionMs = getElapsedMs(compressionStartMs);
   const mcqGenerationStartMs = Date.now();
   let lastValidationError: Error | null = null;
@@ -681,7 +708,7 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
         title: resolvedTitle,
         questionCount,
         keyTopics: mcqSource.keyTopics,
-        sourceText: mcqSource.sourceText,
+        sourceText: mcqSource.sourceText.slice(0, MAX_PRIMARY_MCQ_CONTEXT_CHARS),
       });
 
       try {
@@ -758,7 +785,66 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
     }
   }
 
-  if (bestParsedPayload && bestParsedPayload.questions.length >= MIN_QUESTION_COUNT) {
+  if (!lastQuotaError && (!bestParsedPayload || bestParsedPayload.questions.length < MIN_QUESTION_COUNT)) {
+    const fallbackAttempt = generationAttemptCount;
+    generationAttemptCount += 1;
+    const fallbackPrompt = buildFocusedFallbackMcqPrompt({
+      title: resolvedTitle,
+      questionCount: MIN_QUESTION_COUNT,
+      keyTopics: mcqSource.keyTopics,
+      sourceText: cleanedExtractedText.slice(0, MAX_FALLBACK_MCQ_CONTEXT_CHARS),
+    });
+
+    try {
+      const fallbackResponse = await fetchVertexAiGenerateContent(mcqModel, {
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: fallbackPrompt }],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.25,
+          maxOutputTokens: getMcqOutputTokenLimit(MIN_QUESTION_COUNT),
+          responseMimeType: 'application/json',
+        },
+      });
+
+      const fallbackData = (await fallbackResponse.json()) as {
+        candidates?: Array<{
+          content?: {
+            parts?: Array<{
+              text?: string;
+            }>;
+          };
+        }>;
+      };
+
+      const fallbackCandidateText =
+        fallbackData.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('\n') ??
+        '';
+      const fallbackParsed = validatePromptMcqPayload(parseJsonCandidate(fallbackCandidateText));
+
+      if (
+        !bestParsedPayload ||
+        fallbackParsed.questions.length > bestParsedPayload.questions.length
+      ) {
+        bestParsedPayload = fallbackParsed;
+        bestParsedPayloadModel = mcqModel;
+        bestParsedPayloadAttempt = fallbackAttempt;
+      }
+    } catch (error) {
+      if (isVertexQuotaError(error)) {
+        lastQuotaError =
+          error instanceof Error ? error : new Error('Vertex AI quota is temporarily exhausted.');
+      } else {
+        lastValidationError =
+          error instanceof Error ? error : new Error('Vertex AI did not return valid MCQ output.');
+      }
+    }
+  }
+
+  if (bestParsedPayload && bestParsedPayload.questions.length > 0) {
     const mcqs = bestParsedPayload.questions
       .slice(0, questionCount)
       .map(mapPromptQuestionToGeneratedMcq);
