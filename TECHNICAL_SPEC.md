@@ -39,7 +39,9 @@ This spec is for the current working core only. Future systems such as the knowl
 ### AI and Document Processing
 
 - Gemini Flash for OCR, extraction, and lightweight preprocessing
-- Gemini Pro for nuanced UPSC MCQ generation
+- `GEMINI_MCQ_MODEL` for MCQ generation when configured
+- Gemini Flash as the default MCQ generation model for speed
+- Gemini Pro as an optional MCQ generation model when nuance is more important than latency
 - `pdf-parse` and `pdf-lib` for PDF handling support
 
 ### Repo Layout
@@ -540,6 +542,7 @@ Required for full Phase 1:
 
 Recommended:
 
+- `GEMINI_MCQ_MODEL` when you want to explicitly choose the generation model
 - quiz token signing secret, if supported by current server token helper
 
 ## Error Handling
@@ -583,6 +586,8 @@ Cost rules:
 - Do not add extra paid AI vendors in Phase 1.
 - Parse locally where practical before using AI extraction.
 - Validate cheaply before model calls.
+- Keep MCQ generation prompt payloads compact enough to target roughly 60 seconds for normal pasted notes, PDFs with cached or parsed text, and modest image batches.
+- Use a dedicated MCQ model setting when available; default to the Flash model for speed and reserve Pro for deliberate higher-latency quality passes.
 
 ## Accessibility and UX Requirements
 

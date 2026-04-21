@@ -93,9 +93,11 @@ GOOGLE_CLOUD_API_KEY=
 GOOGLE_CLOUD_PROJECT_ID=
 GEMINI_FLASH_MODEL=
 GEMINI_PRO_MODEL=
+GEMINI_MCQ_MODEL=
 ```
 
 These enable backend persistence, extraction, and MCQ generation.
+`GEMINI_MCQ_MODEL` is optional. If it is not set, MCQ generation uses `GEMINI_FLASH_MODEL` for lower latency. Set it to a Pro model only when quality matters more than speed.
 
 ### Secret Handling Rules
 
@@ -148,7 +150,9 @@ If email confirmation is enabled, signup may route differently than immediate-lo
 Configured models:
 
 - `GEMINI_FLASH_MODEL` for extraction/OCR and lightweight preprocessing
-- `GEMINI_PRO_MODEL` for UPSC MCQ generation
+- `GEMINI_MCQ_MODEL` for MCQ generation when explicitly configured
+- `GEMINI_FLASH_MODEL` as the default MCQ generation model for speed
+- `GEMINI_PRO_MODEL` as the higher-latency option for more nuanced generation
 
 Operational rules:
 
@@ -345,6 +349,26 @@ If a 5-image batch takes several minutes:
 2. Test 5 questions before 10 or 15.
 3. Use clearer, cropped images where possible.
 4. Split unrelated images into separate smaller quizzes.
+
+### All Source Types Take Around 160-180 Seconds
+
+Likely cause:
+
+- MCQ generation is reaching the Vertex request timeout window rather than completing normally.
+- MCQ generation may be configured to use a slower Pro model.
+
+Expected behavior:
+
+- Normal pasted notes, PDFs with parsed/cached text, and modest image batches should target roughly 60 seconds.
+- Very large sources or 15-question generations may still take longer.
+
+Fix path:
+
+1. Keep source sections focused instead of uploading very broad chapters.
+2. Prefer 5 or 10 questions while testing.
+3. Leave `GEMINI_MCQ_MODEL` unset or point it to the Flash model for speed.
+4. Check generation diagnostics in server logs for `mcqGenerationMs`, `extractionMs`, and `compressionMs`.
+5. If `mcqGenerationMs` dominates, tune prompt/model settings before changing extraction.
 
 ### Quiz Results Do Not Save to Supabase
 

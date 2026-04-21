@@ -58,6 +58,7 @@ Full Phase 1:
 - `GOOGLE_CLOUD_PROJECT_ID`
 - `GEMINI_FLASH_MODEL`
 - `GEMINI_PRO_MODEL`
+- `GEMINI_MCQ_MODEL` when explicitly overriding MCQ generation speed/quality
 
 ### Required SQL Setup
 

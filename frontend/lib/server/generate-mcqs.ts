@@ -53,9 +53,9 @@ type GenerateMcqsInput =
 
 const MIN_QUESTION_COUNT = 5;
 const MAX_QUESTION_COUNT = 15;
-const MAX_DIRECT_MCQ_SOURCE_CHARS = 22_000;
+const MAX_DIRECT_MCQ_SOURCE_CHARS = 12_000;
 const COMPRESSION_CHUNK_CHARS = 40_000;
-const MAX_COMPRESSED_CONTEXT_CHARS = 20_000;
+const MAX_COMPRESSED_CONTEXT_CHARS = 12_000;
 const MAX_TRACKED_TOPICS = 10;
 const COMPRESSION_CONCURRENCY = 3;
 const IMAGE_BATCH_EXTRACTION_CONCURRENCY = 2;
@@ -220,14 +220,14 @@ const runWithConcurrency = async <T, R>(
 
 const getMcqOutputTokenLimit = (questionCount: number): number => {
   if (questionCount <= 5) {
-    return 4_096;
+    return 3_072;
   }
 
   if (questionCount <= 10) {
-    return 6_144;
+    return 5_120;
   }
 
-  return 8_192;
+  return 7_168;
 };
 
 const buildChunkCompressionPrompt = (input: {
@@ -510,8 +510,9 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
   const totalStartMs = Date.now();
   const proModel = process.env.GEMINI_PRO_MODEL;
   const flashModel = process.env.GEMINI_FLASH_MODEL;
+  const mcqModel = process.env.GEMINI_MCQ_MODEL || flashModel || proModel;
 
-  if (!proModel && !flashModel) {
+  if (!mcqModel && !proModel && !flashModel) {
     throw new Error(
       'Missing Vertex AI configuration. Add GEMINI_FLASH_MODEL or GEMINI_PRO_MODEL to the frontend environment.',
     );
@@ -605,9 +606,7 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
   const compressionMs = getElapsedMs(compressionStartMs);
   const mcqGenerationStartMs = Date.now();
   let lastValidationError: Error | null = null;
-  const generationModels = Array.from(
-    new Set([flashModel, proModel].filter((model): model is string => Boolean(model))),
-  );
+  const generationModels = mcqModel ? [mcqModel] : [];
   let bestParsedPayload: ReturnType<typeof validatePromptMcqPayload> | null = null;
   let bestParsedPayloadModel = generationModels[0] ?? 'unknown';
   let bestParsedPayloadAttempt = 0;
@@ -634,8 +633,7 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
 
   for (let modelIndex = 0; modelIndex < generationModels.length; modelIndex += 1) {
     const model = generationModels[modelIndex];
-    const isFinalModel = modelIndex === generationModels.length - 1;
-    const retryCount = isFinalModel || generationModels.length === 1 ? 2 : 1;
+    const retryCount = 2;
 
     for (let retryIndex = 0; retryIndex < retryCount; retryIndex += 1) {
       const currentAttempt = generationAttemptCount;
@@ -646,7 +644,7 @@ export const generateMcqs = async (input: GenerateMcqsInput): Promise<McqGenerat
         keyTopics: mcqSource.keyTopics,
         sourceText: mcqSource.sourceText,
         validationFeedback: lastValidationError?.message,
-        prioritizeCorrectness: model === proModel || isFinalModel || retryIndex > 0,
+        prioritizeCorrectness: model === proModel || retryIndex > 0,
       });
 
       const response = await fetchVertexAiGenerateContent(model, {
